@@ -1,0 +1,50 @@
+package com.rotacerta.app
+
+import com.rotacerta.app.core.OfferParser
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class OfferParserTest {
+    @Test
+    fun parsesTypicalOffer() {
+        val texts = listOf("UberX", "R$ 18,50", "4 min (1,2 km) de distância", "14 min (6,3 km) de viagem", "4,85", "Aceitar")
+        val o = OfferParser.parse(texts, "Uber")
+        assertNotNull(o)
+        assertEquals(18.5, o!!.price, 0.001)
+        assertEquals(1.2, o.pickupKm, 0.001)
+        assertEquals(4, o.pickupMin)
+        assertEquals(6.3, o.tripKm, 0.001)
+        assertEquals(14, o.tripMin)
+        assertEquals(4.85, o.rating!!, 0.001)
+    }
+
+    @Test
+    fun ignoresScreensWithoutAcceptButton() {
+        val texts = listOf("Ganhos de hoje", "R$ 120,00", "2 min (1 km)")
+        assertNull(OfferParser.parse(texts, "Uber"))
+    }
+
+    @Test
+    fun readsThousandsSeparator() {
+        val texts = listOf("R$ 1.234,56", "30 min (20 km)", "Aceitar")
+        assertEquals(1234.56, OfferParser.parse(texts, "99")!!.price, 0.001)
+    }
+
+    @Test
+    fun readsMetersAndHours() {
+        val texts = listOf("R$ 25,00", "3 min (800 m)", "1 h 5 min (40 km)", "Aceitar")
+        val o = OfferParser.parse(texts, "99")!!
+        assertEquals(0.8, o.pickupKm, 0.001)
+        assertEquals(65, o.tripMin)
+        assertEquals(40.0, o.tripKm, 0.001)
+    }
+
+    @Test
+    fun singleDistanceIsTreatedAsTrip() {
+        val o = OfferParser.parse(listOf("R$ 12,00", "15 min (8 km)", "Aceitar"), "inDrive")!!
+        assertEquals(0, o.pickupMin)
+        assertEquals(8.0, o.tripKm, 0.001)
+    }
+}
