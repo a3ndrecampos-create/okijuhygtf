@@ -45,7 +45,7 @@ class OverlayController(private val ctx: Context) {
 
     fun show(a: Analysis, seconds: Int, position: Int = 0) {
         hide()
-        val card = build(a)
+        val card = build(a, seconds)
         val lp = WindowManager.LayoutParams(
             ctx.resources.displayMetrics.widthPixels - dp(24),
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -60,6 +60,7 @@ class OverlayController(private val ctx: Context) {
         }
         try {
             wm.addView(card, lp)
+            animateIn(card)
             view = card
             handler.postDelayed(hider, seconds * 1000L)
         } catch (_: Exception) {
@@ -79,48 +80,91 @@ class OverlayController(private val ctx: Context) {
         if (bold) setTypeface(typeface, Typeface.BOLD)
     }
 
-    private fun build(a: Analysis): View {
+    private fun pill(text: String, bg: Int, fg: Int) = tv(text, 12f, fg, true).apply {
+        letterSpacing = 0.12f
+        setPadding(dp(12), dp(5), dp(12), dp(5))
+        background = GradientDrawable().apply { setColor(bg); cornerRadius = dp(20).toFloat() }
+    }
+
+    private fun build(a: Analysis, seconds: Int): View {
         val c = argb(a.verdict)
-        val white = 0xFFF1F5F9.toInt()
+        val white = 0xFFF8FAFC.toInt()
         val gray = 0xFF94A3B8.toInt()
+        val dark = 0xFF04130C.toInt()
+        val profitColor = if (a.profit > 0) argb(Verdict.GREEN) else argb(Verdict.RED)
+
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            background = GradientDrawable().apply {
-                setColor(0xF2101828.toInt())
-                cornerRadius = dp(20).toFloat()
-                setStroke(dp(2), c)
+            setPadding(dp(16), dp(14), dp(16), dp(12))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(0xF5121B30.toInt(), 0xF51B2745.toInt())
+            ).apply {
+                cornerRadius = dp(24).toFloat()
+                setStroke(dp(1) + 1, (c and 0x00FFFFFF) or (0xB0 shl 24))
             }
-            elevation = dp(8).toFloat()
+            elevation = dp(12).toFloat()
             setOnClickListener { hide() }
         }
 
+        // Linha 1: selo do veredito + valor da corrida
         val header = LinearLayout(ctx).apply { gravity = Gravity.CENTER_VERTICAL }
-        val dot = View(ctx).apply {
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(c) }
-        }
-        header.addView(dot, LinearLayout.LayoutParams(dp(14), dp(14)))
-        header.addView(tv(title(a.verdict), 16f, c, true).apply { setPadding(dp(10), 0, 0, 0) },
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(tv(money(a.offer.price), 22f, white, true))
+        header.addView(pill(title(a.verdict), c, dark))
+        header.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+        header.addView(tv(money(a.offer.price), 26f, white, true))
         root.addView(header)
 
-        val row = LinearLayout(ctx).apply { setPadding(0, dp(12), 0, dp(8)) }
-        fun metric(label: String, value: String) {
-            val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-            col.addView(tv(label, 11f, gray))
-            col.addView(tv(value, 17f, white, true))
-            row.addView(col, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        // Linha 2: três indicadores em "pastilhas"
+        val row = LinearLayout(ctx)
+        fun tile(label: String, value: String, valueColor: Int, last: Boolean) {
+            val col = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                background = GradientDrawable().apply {
+                    setColor(0x1AFFFFFF); cornerRadius = dp(14).toFloat()
+                }
+            }
+            col.addView(tv(label, 10f, gray, true).apply { letterSpacing = 0.1f })
+            col.addView(tv(value, 18f, valueColor, true))
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            if (!last) lp.marginEnd = dp(8)
+            row.addView(col, lp)
         }
-        metric("R$/km", num(a.perKm))
-        metric("R$/hora", num(a.perHour, 0))
-        metric("Lucro", money(a.profit))
-        root.addView(row)
+        tile("R$/KM", num(a.perKm), white, false)
+        tile("R$/HORA", num(a.perHour, 0), white, false)
+        tile("LUCRO", money(a.profit), profitColor, true)
+        root.addView(row, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(12) })
 
+        // Linha 3: motivo + distância total
         root.addView(tv(
             a.reasons.first() + "  ·  " + num(a.offer.totalKm, 1) + " km · " + a.offer.totalMin + " min",
             12f, gray
-        ))
+        ), LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10) })
+
+        // Barrinha que encolhe até o cartão sumir
+        val bar = View(ctx).apply {
+            background = GradientDrawable().apply { setColor(c); cornerRadius = dp(2).toFloat() }
+            pivotX = 0f
+        }
+        root.addView(bar, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(3)
+        ).apply { topMargin = dp(10) })
+        root.tag = Pair(bar, seconds)
         return root
+    }
+
+    /** Entrada suave + contagem regressiva da barrinha. */
+    @Suppress("UNCHECKED_CAST")
+    private fun animateIn(card: View) {
+        card.alpha = 0f
+        card.translationY = -dp(14).toFloat()
+        card.animate().alpha(1f).translationY(0f).setDuration(180).start()
+        val (bar, seconds) = card.tag as Pair<View, Int>
+        bar.animate().scaleX(0f).setDuration(seconds * 1000L)
+            .setInterpolator(android.view.animation.LinearInterpolator()).start()
     }
 }
