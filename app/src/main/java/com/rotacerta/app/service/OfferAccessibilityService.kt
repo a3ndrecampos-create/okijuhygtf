@@ -120,7 +120,7 @@ class OfferAccessibilityService : AccessibilityService() {
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
     /**
-     * Laço próprio de OCR: roda a cada ~0,7 s enquanto a Uber estiver na tela, sem depender de eventos de
+     * Laço próprio de OCR: roda a cada ~0,4 s enquanto a Uber estiver na tela, sem depender de eventos de
      * acessibilidade (o pop-up quase não gera eventos, por isso a leitura demorava até o fim da contagem).
      */
     private val ocrTick = object : Runnable {
@@ -133,7 +133,7 @@ class OfferAccessibilityService : AccessibilityService() {
             }
             // Se a leitura por texto acabou de achar a oferta, não precisa gastar bateria com imagem.
             if (SystemClock.elapsedRealtime() - lastTreeOfferAt > 4000) runOcr()
-            handler.postDelayed(this, if (overlay.isShowing) 1200L else 700L)
+            handler.postDelayed(this, if (overlay.isShowing) 600L else 400L)
         }
     }
 
@@ -152,14 +152,7 @@ class OfferAccessibilityService : AccessibilityService() {
     private fun runOcr() {
         if (ocrBusy) return
         ocrBusy = true
-        if (overlay.isShowing) {
-            // O cartão do RotaCerta aparece na captura e esconderia (ou confundiria) a oferta nova.
-            // Esconde por um instante, captura, e mostra de novo.
-            overlay.setHidden(true)
-            handler.postDelayed({ shoot() }, 120)
-        } else {
-            shoot()
-        }
+        shoot()
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -171,16 +164,15 @@ class OfferAccessibilityService : AccessibilityService() {
                         val hw = Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace)
                         val copy = hw?.copy(Bitmap.Config.ARGB_8888, false)
                         hw?.recycle()
-                        // O cartão da oferta fica na parte de baixo: descarta os 25% de cima (OCR mais rápido).
+                        // O cartão da oferta fica na parte de baixo: descarta os 30% de cima (onde fica o cartão do RotaCerta: nunca aparece na leitura e não precisa piscar) (OCR mais rápido).
                         copy?.let {
-                            val top = (it.height * 0.25f).toInt()
+                            val top = (it.height * 0.30f).toInt()
                             val cut = Bitmap.createBitmap(it, 0, top, it.width, it.height - top)
                             if (cut !== it) it.recycle()
                             cut
                         }
                     } catch (e: Exception) { null }
                     try { result.hardwareBuffer.close() } catch (_: Exception) {}
-                    overlay.setHidden(false)
                     if (bmp == null) { ocrBusy = false; return }
                     recognizer.process(InputImage.fromBitmap(bmp, 0))
                         .addOnSuccessListener { t -> bmp.recycle(); onOcrText(t) }
@@ -188,12 +180,10 @@ class OfferAccessibilityService : AccessibilityService() {
                 }
 
                 override fun onFailure(errorCode: Int) {
-                    overlay.setHidden(false)
                     ocrBusy = false
                 }
             })
         } catch (e: Exception) {
-            overlay.setHidden(false)
             ocrBusy = false
         }
     }
@@ -206,6 +196,7 @@ class OfferAccessibilityService : AccessibilityService() {
         val lines = t.textBlocks.flatMap { it.lines }
             .sortedWith(compareBy({ (it.boundingBox?.top ?: 0) / 20 }, { it.boundingBox?.left ?: 0 }))
             .map { it.text }
+            .filter { it.trim().lowercase() !in OWN_LINES }
         val offer = OfferParser.parse(lines, "Uber")
         if (s.diagnostics) DiagnosticsStore.publish("com.ubercab.driver (OCR)", lines, offer)
         if (offer != null) {
@@ -272,6 +263,9 @@ class OfferAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        /** Linhas do cartão do próprio RotaCerta, caso apareçam na captura. */
+        private val OWN_LINES = setOf("r\$/km", "r\$/hora", "lucro", "aceite", "avalie", "recuse")
+
         /** Pacotes lidos. Mantenha em sincronia com res/xml/accessibility_service_config.xml. */
         val TARGETS = mapOf(
             "com.ubercab.driver" to "Uber",

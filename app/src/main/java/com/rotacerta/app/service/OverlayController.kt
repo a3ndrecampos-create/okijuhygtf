@@ -53,11 +53,10 @@ class OverlayController(private val ctx: Context) {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
-            when (position) {
-                1 -> { gravity = Gravity.CENTER or Gravity.CENTER_HORIZONTAL; y = 0 }
-                2 -> { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; y = dp(56) }
-                else -> { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(40) }
-            }
+            // Sempre na faixa de cima da tela (mapa), longe do cartão da Uber: assim a captura de tela
+            // da leitura não pega o semáforo e ele não precisa piscar/sumir. "Centro" e "Base" ficam um pouco mais abaixo.
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            y = if (position == 0) dp(40) else (ctx.resources.displayMetrics.heightPixels * 0.10f).toInt()
         }
         try {
             wm.addView(card, lp)
