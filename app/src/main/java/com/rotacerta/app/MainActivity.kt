@@ -48,7 +48,13 @@ fun AppRoot() {
     val history by app.history.items.collectAsState()
     var accessOn by remember { mutableStateOf(isAccessibilityEnabled(ctx)) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var showSplash by rememberSaveable { mutableStateOf(true) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { accessOn = isAccessibilityEnabled(ctx) }
+
+    if (showSplash) {
+        SplashScreen { showSplash = false }
+        return
+    }
 
     val s = settings
     if (s == null) {

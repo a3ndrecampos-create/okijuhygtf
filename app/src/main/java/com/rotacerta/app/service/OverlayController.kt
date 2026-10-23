@@ -24,6 +24,11 @@ class OverlayController(private val ctx: Context) {
     private val hider = Runnable { hide() }
     val isShowing: Boolean get() = view != null
 
+    /** Esconde/mostra o cartão sem removê-lo (usado para tirar a captura de tela sem ele aparecer). */
+    fun setHidden(hidden: Boolean) {
+        view?.visibility = if (hidden) View.INVISIBLE else View.VISIBLE
+    }
+
     private fun dp(v: Int) = (v * ctx.resources.displayMetrics.density).toInt()
 
     private fun argb(v: Verdict): Int = when (v) {

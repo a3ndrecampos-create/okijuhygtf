@@ -88,12 +88,13 @@ class OfferAccessibilityService : AccessibilityService() {
                 handler.postDelayed(trailingScan, 400)
             }
             // A Uber pode desenhar o pop-up de um jeito que a acessibilidade não vê: lê a imagem da tela (OCR).
-            if (found != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) tryOcr(found.second)
+            if (found != null) ensureOcrLoop()
             return
         }
         misses = 0
         retries = 0
         ocrShown = false
+        lastTreeOfferAt = SystemClock.elapsedRealtime()
         handleOffer(offer, s)
     }
 
@@ -112,18 +113,57 @@ class OfferAccessibilityService : AccessibilityService() {
 
     // ---------- Plano B: OCR da captura de tela (Android 11+) ----------
     private var ocrBusy = false
-    private var lastOcr = 0L
     private var ocrShown = false
     private var ocrMisses = 0
+    private var ocrLoopOn = false
+    private var lastTreeOfferAt = 0L
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
+    /**
+     * Laço próprio de OCR: roda a cada ~0,7 s enquanto a Uber estiver na tela, sem depender de eventos de
+     * acessibilidade (o pop-up quase não gera eventos, por isso a leitura demorava até o fim da contagem).
+     */
+    private val ocrTick = object : Runnable {
+        override fun run() {
+            if (!settings.monitoring || Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !uberOnScreen()) {
+                ocrLoopOn = false
+                if (ocrShown) { overlay.hide(); ocrShown = false }
+                lastSignature = ""
+                return
+            }
+            // Se a leitura por texto acabou de achar a oferta, não precisa gastar bateria com imagem.
+            if (SystemClock.elapsedRealtime() - lastTreeOfferAt > 4000) runOcr()
+            handler.postDelayed(this, if (overlay.isShowing) 1200L else 700L)
+        }
+    }
+
+    private fun ensureOcrLoop() {
+        if (ocrLoopOn || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        ocrLoopOn = true
+        handler.postDelayed(ocrTick, 100)
+    }
+
+    private fun uberOnScreen(): Boolean {
+        if (TARGETS.containsKey(rootInActiveWindow?.packageName?.toString().orEmpty())) return true
+        return windows.any { TARGETS.containsKey(it.root?.packageName?.toString().orEmpty()) }
+    }
+
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun tryOcr(source: String) {
-        if (ocrBusy || overlay.isShowing) return
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastOcr < 1500) return
-        lastOcr = now
+    private fun runOcr() {
+        if (ocrBusy) return
         ocrBusy = true
+        if (overlay.isShowing) {
+            // O cartão do RotaCerta aparece na captura e esconderia (ou confundiria) a oferta nova.
+            // Esconde por um instante, captura, e mostra de novo.
+            overlay.setHidden(true)
+            handler.postDelayed({ shoot() }, 120)
+        } else {
+            shoot()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun shoot() {
         try {
             takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
                 override fun onSuccess(result: ScreenshotResult) {
@@ -131,23 +171,34 @@ class OfferAccessibilityService : AccessibilityService() {
                         val hw = Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace)
                         val copy = hw?.copy(Bitmap.Config.ARGB_8888, false)
                         hw?.recycle()
-                        copy
+                        // O cartão da oferta fica na parte de baixo: descarta os 25% de cima (OCR mais rápido).
+                        copy?.let {
+                            val top = (it.height * 0.25f).toInt()
+                            val cut = Bitmap.createBitmap(it, 0, top, it.width, it.height - top)
+                            if (cut !== it) it.recycle()
+                            cut
+                        }
                     } catch (e: Exception) { null }
                     try { result.hardwareBuffer.close() } catch (_: Exception) {}
+                    overlay.setHidden(false)
                     if (bmp == null) { ocrBusy = false; return }
                     recognizer.process(InputImage.fromBitmap(bmp, 0))
-                        .addOnSuccessListener { t -> bmp.recycle(); onOcrText(t, source) }
+                        .addOnSuccessListener { t -> bmp.recycle(); onOcrText(t) }
                         .addOnFailureListener { bmp.recycle(); ocrBusy = false }
                 }
 
-                override fun onFailure(errorCode: Int) { ocrBusy = false }
+                override fun onFailure(errorCode: Int) {
+                    overlay.setHidden(false)
+                    ocrBusy = false
+                }
             })
         } catch (e: Exception) {
+            overlay.setHidden(false)
             ocrBusy = false
         }
     }
 
-    private fun onOcrText(t: Text, source: String) {
+    private fun onOcrText(t: Text) {
         ocrBusy = false
         val s = settings
         if (!s.monitoring) return
@@ -155,17 +206,17 @@ class OfferAccessibilityService : AccessibilityService() {
         val lines = t.textBlocks.flatMap { it.lines }
             .sortedWith(compareBy({ (it.boundingBox?.top ?: 0) / 20 }, { it.boundingBox?.left ?: 0 }))
             .map { it.text }
-        val offer = OfferParser.parse(lines, source)
+        val offer = OfferParser.parse(lines, "Uber")
         if (s.diagnostics) DiagnosticsStore.publish("com.ubercab.driver (OCR)", lines, offer)
         if (offer != null) {
             ocrShown = true
             ocrMisses = 0
             misses = 0
-            handleOffer(offer, s)
-        } else if (ocrShown && ++ocrMisses >= 2) {
-            // Cartão saiu da tela: libera para a próxima oferta (mesmo valor) ser mostrada de novo.
-            ocrShown = false
+            handleOffer(offer, s)   // oferta nova (assinatura diferente) substitui o cartão anterior
+        } else if (++ocrMisses >= 3) {
+            // Cartão da Uber saiu da tela (aceita, recusada ou expirada): some o semáforo e libera a próxima.
             ocrMisses = 0
+            if (ocrShown) { overlay.hide(); ocrShown = false }
             lastSignature = ""
         }
     }
