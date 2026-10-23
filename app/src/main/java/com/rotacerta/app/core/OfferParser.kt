@@ -9,10 +9,10 @@ import com.rotacerta.app.data.RideOffer
 object OfferParser {
     private val money = Regex("""R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})""")
     private val pair = Regex(
-        """(?:(\d+)\s*h\s*)?(\d+)\s*min(?:utos?)?\s*\(?\s*(\d+(?:[.,]\d+)?)\s*(km|m)\b""",
+        """(?:(\d+)\s*h\s*)?(\d+)\s*min(?:utos?)?[\s(•·|,\-–]*(\d+(?:[.,]\d+)?)\s*(km|m)\b""",
         RegexOption.IGNORE_CASE
     )
-    private val rating = Regex("""^\s*([3-5][.,]\d{1,2})\s*$""")
+    private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?\s*$""")
     private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
 
     private fun toDouble(raw: String): Double? {
