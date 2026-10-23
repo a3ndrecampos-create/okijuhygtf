@@ -15,7 +15,7 @@ object DiagnosticsStore {
 
     fun publish(pkg: String, texts: List<String>, offer: RideOffer?) {
         if (_last.value?.texts == texts) return
-        val result = if (offer == null) "Oferta não reconhecida" else
+        val result = if (offer == null) "Oferta não reconhecida (" + texts.size + " textos lidos)" else
             money(offer.price) + " · passageiro " + num(offer.pickupKm, 1) + " km/" + offer.pickupMin +
                 " min · viagem " + num(offer.tripKm, 1) + " km/" + offer.tripMin + " min"
         _last.value = Capture(System.currentTimeMillis(), pkg, texts.take(120), result)

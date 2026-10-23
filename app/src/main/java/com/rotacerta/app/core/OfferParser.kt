@@ -9,11 +9,11 @@ import com.rotacerta.app.data.RideOffer
 object OfferParser {
     private val money = Regex("""R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})""")
     private val pair = Regex(
-        """(?:(\d+)\s*h\s*)?(\d+)\s*min(?:utos?)?[\s(•·|,\-–]*(\d+(?:[.,]\d+)?)\s*(km|quil[oô]metros?|metros?|m)\b""",
+        """(?:(\d+)\s*h(?:oras?)?\s*(?:e\s*)?)?(\d+)\s*min(?:utos?)?[\s(•·|,\-–]*(\d+(?:[.,]\d+)?)\s*(km|quil[oô]metros?|metros?|m)\b""",
         RegexOption.IGNORE_CASE
     )
     private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?\s*$""")
-    private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
+    private val cues = listOf("aceitar", "viagem", "accept", "selecionar", "confirmar", "oferecer")
 
     /**
      * Os apps usam espaço não separável (U+00A0, U+202F), marcas invisíveis e bullets variados.

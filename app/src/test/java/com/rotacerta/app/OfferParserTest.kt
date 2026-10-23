@@ -82,4 +82,16 @@ class OfferParserTest {
         val o = OfferParser.parse(listOf("R$ 10,32", "3 min • 1.0 km", "8 minutos • 2.0 km"), "Uber")
         assertNotNull(o)
     }
+
+    @Test
+    fun parsesLongTripWithHoursAndViagemButton() {
+        val o = OfferParser.parse(listOf(
+            "UberX", "R$ 100,72", "Est. de R$1,92/km", "5 min • 1.7 km", "4,90",
+            "1 h e 2 min • 50.7 km", "Viagem longa (mais de 45 min)", "Viagem"
+        ), "Uber")!!
+        assertEquals(100.72, o.price, 0.001)
+        assertEquals(62, o.tripMin)
+        assertEquals(50.7, o.tripKm, 0.001)
+        assertEquals(4.9, o.rating!!, 0.001)
+    }
 }
