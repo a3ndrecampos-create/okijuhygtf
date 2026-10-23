@@ -13,7 +13,9 @@ object OfferParser {
         RegexOption.IGNORE_CASE
     )
     private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?\s*$""")
-    private val cues = listOf("aceitar", "viagem", "accept", "selecionar", "confirmar", "oferecer")
+    /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
+    private val exactCues = setOf("viagem", "entrega", "aceitar", "accept")
+    private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
 
     /**
      * Os apps usam espaço não separável (U+00A0, U+202F), marcas invisíveis e bullets variados.
@@ -33,7 +35,7 @@ object OfferParser {
         val texts = rawTexts.map { normalize(it) }
         val joined = texts.joinToString("  ")
         val low = joined.lowercase()
-        val hasCue = cues.any { low.contains(it) }
+        val hasCue = cues.any { low.contains(it) } || texts.any { it.trim().lowercase() in exactCues }
 
         val price = money.findAll(joined)
             .mapNotNull { toDouble(it.groupValues[1]) }
