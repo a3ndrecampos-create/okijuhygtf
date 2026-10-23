@@ -1,11 +1,19 @@
 package com.rotacerta.app.service
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Bitmap
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.annotation.RequiresApi
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.rotacerta.app.core.Calculator
 import com.rotacerta.app.core.OfferParser
 import com.rotacerta.app.data.AppSettings
@@ -68,7 +76,7 @@ class OfferAccessibilityService : AccessibilityService() {
             DiagnosticsStore.publish("(nenhum app de corrida lido)", pkgs.map { "janela: $it" }, null)
         }
         if (offer == null) {
-            if (++misses >= 4) {
+            if (!ocrShown && ++misses >= 4) {
                 misses = 0
                 lastSignature = ""
                 overlay.hide()
@@ -79,11 +87,17 @@ class OfferAccessibilityService : AccessibilityService() {
                 handler.removeCallbacks(trailingScan)
                 handler.postDelayed(trailingScan, 400)
             }
+            // A Uber pode desenhar o pop-up de um jeito que a acessibilidade não vê: lê a imagem da tela (OCR).
+            if (found != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) tryOcr(found.second)
             return
         }
         misses = 0
         retries = 0
+        ocrShown = false
+        handleOffer(offer, s)
+    }
 
+    private fun handleOffer(offer: RideOffer, s: AppSettings) {
         val sig = offer.price.toString() + "|" + offer.totalKm + "|" + offer.totalMin
         if (sig == lastSignature) return
         lastSignature = sig
@@ -94,6 +108,66 @@ class OfferAccessibilityService : AccessibilityService() {
                 a.perKm, a.perHour, a.profit, a.verdict, offer.source)
         )
         if (s.overlayEnabled) overlay.show(a, s.overlaySeconds, s.overlayPosition)
+    }
+
+    // ---------- Plano B: OCR da captura de tela (Android 11+) ----------
+    private var ocrBusy = false
+    private var lastOcr = 0L
+    private var ocrShown = false
+    private var ocrMisses = 0
+    private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun tryOcr(source: String) {
+        if (ocrBusy || overlay.isShowing) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastOcr < 1500) return
+        lastOcr = now
+        ocrBusy = true
+        try {
+            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+                override fun onSuccess(result: ScreenshotResult) {
+                    val bmp: Bitmap? = try {
+                        val hw = Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace)
+                        val copy = hw?.copy(Bitmap.Config.ARGB_8888, false)
+                        hw?.recycle()
+                        copy
+                    } catch (e: Exception) { null }
+                    try { result.hardwareBuffer.close() } catch (_: Exception) {}
+                    if (bmp == null) { ocrBusy = false; return }
+                    recognizer.process(InputImage.fromBitmap(bmp, 0))
+                        .addOnSuccessListener { t -> bmp.recycle(); onOcrText(t, source) }
+                        .addOnFailureListener { bmp.recycle(); ocrBusy = false }
+                }
+
+                override fun onFailure(errorCode: Int) { ocrBusy = false }
+            })
+        } catch (e: Exception) {
+            ocrBusy = false
+        }
+    }
+
+    private fun onOcrText(t: Text, source: String) {
+        ocrBusy = false
+        val s = settings
+        if (!s.monitoring) return
+        // Ordem visual (de cima para baixo): retirada vem antes da viagem.
+        val lines = t.textBlocks.flatMap { it.lines }
+            .sortedWith(compareBy({ (it.boundingBox?.top ?: 0) / 20 }, { it.boundingBox?.left ?: 0 }))
+            .map { it.text }
+        val offer = OfferParser.parse(lines, source)
+        if (s.diagnostics) DiagnosticsStore.publish("com.ubercab.driver (OCR)", lines, offer)
+        if (offer != null) {
+            ocrShown = true
+            ocrMisses = 0
+            misses = 0
+            handleOffer(offer, s)
+        } else if (ocrShown && ++ocrMisses >= 2) {
+            // Cartão saiu da tela: libera para a próxima oferta (mesmo valor) ser mostrada de novo.
+            ocrShown = false
+            ocrMisses = 0
+            lastSignature = ""
+        }
     }
 
     private var retries = 0
@@ -140,6 +214,7 @@ class OfferAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(trailingScan)
+        try { recognizer.close() } catch (_: Exception) {}
         if (::overlay.isInitialized) overlay.hide()
         scope.cancel()
         super.onDestroy()

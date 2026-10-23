@@ -22,6 +22,7 @@ class OverlayController(private val ctx: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var view: View? = null
     private val hider = Runnable { hide() }
+    val isShowing: Boolean get() = view != null
 
     private fun dp(v: Int) = (v * ctx.resources.displayMetrics.density).toInt()
 

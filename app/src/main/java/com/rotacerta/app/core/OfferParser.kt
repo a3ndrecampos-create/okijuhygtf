@@ -7,9 +7,9 @@ import com.rotacerta.app.data.RideOffer
  * Os formatos mudam a cada versão dos apps: ajuste as regex abaixo se algum campo não for lido.
  */
 object OfferParser {
-    private val money = Regex("""R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})""")
+    private val money = Regex("""R[\$S]\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})""")
     private val pair = Regex(
-        """(?:(\d+)\s*h(?:oras?)?\s*(?:e\s*)?)?(\d+)\s*min(?:utos?)?[\s(•·|,\-–]*(\d+(?:[.,]\d+)?)\s*(km|quil[oô]metros?|metros?|m)\b""",
+        """(?:(\d+)\s*h(?:oras?)?\s*(?:e\s*)?)?(\d+)\s*min(?:utos?)?[\s(•·|,.:*~\-–]*(\d+(?:[.,]\d+)?)\s*(km|quil[oô]metros?|metros?|m)\b""",
         RegexOption.IGNORE_CASE
     )
     private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?\s*$""")
