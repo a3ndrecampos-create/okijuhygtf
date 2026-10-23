@@ -1,6 +1,8 @@
 package com.rotacerta.app.service
 
 import android.accessibilityservice.AccessibilityService
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -31,22 +33,39 @@ class OfferAccessibilityService : AccessibilityService() {
         scope.launch { rotaApp.settings.flow.collect { settings = it } }
     }
 
+    private val handler = Handler(Looper.getMainLooper())
+    private val trailingScan = Runnable { scan() }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        val s = settings
-        if (event == null || !s.monitoring) return
+        if (event == null || !settings.monitoring) return
         val now = SystemClock.elapsedRealtime()
-        if (now - lastScan < 300) return
-        lastScan = now
+        if (now - lastScan < 300) {
+            // Evento caiu na janela de 300 ms: agenda uma leitura final, senão a oferta
+            // pode ficar sem leitura quando o app para de emitir eventos (contagem do botão Aceitar).
+            handler.removeCallbacks(trailingScan)
+            handler.postDelayed(trailingScan, 350)
+            return
+        }
+        scan()
+    }
+
+    private fun scan() {
+        val s = settings
+        if (!s.monitoring) return
+        lastScan = SystemClock.elapsedRealtime()
 
         var offer: RideOffer? = null
-        val found = findTarget()
+        val found = findTargets()
         if (found != null) {
             val texts = ArrayList<String>()
-            collect(found.first, texts, 0)
+            for (root in found.first) collect(root, texts)
             offer = OfferParser.parse(texts, found.second)
             if (s.diagnostics) {
-                DiagnosticsStore.publish(found.first.packageName?.toString().orEmpty(), texts, offer)
+                DiagnosticsStore.publish(found.first[0].packageName?.toString().orEmpty(), texts, offer)
             }
+        } else if (s.diagnostics) {
+            val pkgs = windows.mapNotNull { it.root?.packageName?.toString() }.distinct()
+            DiagnosticsStore.publish("(nenhum app de corrida lido)", pkgs.map { "janela: $it" }, null)
         }
         if (offer == null) {
             if (++misses >= 4) {
@@ -54,9 +73,16 @@ class OfferAccessibilityService : AccessibilityService() {
                 lastSignature = ""
                 overlay.hide()
             }
+            // Oferta pode aparecer um instante depois do evento: continua tentando enquanto o app alvo está na tela.
+            if (found != null && retries < 6) {
+                retries++
+                handler.removeCallbacks(trailingScan)
+                handler.postDelayed(trailingScan, 400)
+            }
             return
         }
         misses = 0
+        retries = 0
 
         val sig = offer.price.toString() + "|" + offer.totalKm + "|" + offer.totalMin
         if (sig == lastSignature) return
@@ -70,28 +96,50 @@ class OfferAccessibilityService : AccessibilityService() {
         if (s.overlayEnabled) overlay.show(a, s.overlaySeconds, s.overlayPosition)
     }
 
-    /** Janela ativa ou, se a oferta aparece como balão sobre outro app (ex.: Waze), qualquer janela do app alvo. */
-    private fun findTarget(): Pair<AccessibilityNodeInfo, String>? {
+    private var retries = 0
+
+    /**
+     * TODAS as janelas do app alvo (o cartão da oferta costuma ser outra janela, separada do mapa).
+     * Antes só a primeira era lida, então o cartão podia nunca entrar na leitura.
+     */
+    private fun findTargets(): Pair<List<AccessibilityNodeInfo>, String>? {
+        val roots = ArrayList<AccessibilityNodeInfo>()
+        var source: String? = null
         rootInActiveWindow?.let { r ->
-            TARGETS[r.packageName?.toString().orEmpty()]?.let { return Pair(r, it) }
+            TARGETS[r.packageName?.toString().orEmpty()]?.let { roots.add(r); source = it }
         }
         for (w in windows) {
             val r = w.root ?: continue
-            TARGETS[r.packageName?.toString().orEmpty()]?.let { return Pair(r, it) }
+            val name = TARGETS[r.packageName?.toString().orEmpty()] ?: continue
+            if (roots.none { it == r }) roots.add(r)
+            if (source == null) source = name
         }
-        return null
+        return if (roots.isEmpty()) null else Pair(roots, source ?: "")
     }
 
-    private fun collect(node: AccessibilityNodeInfo?, out: MutableList<String>, depth: Int) {
-        if (node == null || depth > 40 || out.size > 400) return
-        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
-        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
-        for (i in 0 until node.childCount) collect(node.getChild(i), out, depth + 1)
+    /** Percurso iterativo, sem o corte de 400 textos: o mapa da Uber gera centenas de nós e escondia o cartão. */
+    private fun collect(root: AccessibilityNodeInfo?, out: MutableList<String>) {
+        if (root == null) return
+        val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        stack.addLast(Pair(root, 0))
+        var visited = 0
+        while (stack.isNotEmpty() && visited < 6000) {
+            val (node, depth) = stack.removeLast()
+            visited++
+            node.text?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+            node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+            if (depth >= 60) continue
+            // empilha ao contrário para manter a ordem visual (retirada antes da viagem)
+            for (i in node.childCount - 1 downTo 0) {
+                node.getChild(i)?.let { stack.addLast(Pair(it, depth + 1)) }
+            }
+        }
     }
 
     override fun onInterrupt() {}
 
     override fun onDestroy() {
+        handler.removeCallbacks(trailingScan)
         if (::overlay.isInitialized) overlay.hide()
         scope.cancel()
         super.onDestroy()

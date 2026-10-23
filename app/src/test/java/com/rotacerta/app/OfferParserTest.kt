@@ -63,4 +63,23 @@ class OfferParserTest {
         assertEquals(8, o.tripMin)
         assertEquals(4.91, o.rating!!, 0.001)
     }
+
+    @Test
+    fun parsesNonBreakingSpacesAndInvisibleMarks() {
+        val texts = listOf(
+            "R$\u00A010,32", "3\u00A0min\u00A0\u2022\u00A01.0\u00A0km",
+            "\u200E4,91\u00A0(944)", "8\u202Fminutos\u00A0•\u00A02.0\u00A0km", "Aceitar"
+        )
+        val o = OfferParser.parse(texts, "Uber")!!
+        assertEquals(10.32, o.price, 0.001)
+        assertEquals(1.0, o.pickupKm, 0.001)
+        assertEquals(2.0, o.tripKm, 0.001)
+        assertEquals(4.91, o.rating!!, 0.001)
+    }
+
+    @Test
+    fun parsesWithoutAcceptButtonWhenBothRoutesPresent() {
+        val o = OfferParser.parse(listOf("R$ 10,32", "3 min • 1.0 km", "8 minutos • 2.0 km"), "Uber")
+        assertNotNull(o)
+    }
 }
