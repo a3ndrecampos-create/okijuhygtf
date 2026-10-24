@@ -176,4 +176,39 @@ class OfferParserTest {
         )
         assertEquals(17.76, OfferParser.parse(texts, "99", strict = true)!!.price, 0.001)
     }
+
+    @Test
+    fun ignoresBalanceLabelledNextToOffer() {
+        val texts = listOf(
+            "Saldo total", "R$ 845,20", "UberX", "R$ 10,32", "Est. de R$3,44/km",
+            "3 min • 1.0 km", "8 minutos • 2.0 km", "Aceitar"
+        )
+        assertEquals(10.32, OfferParser.parse(texts, "Uber")!!.price, 0.001)
+    }
+
+    @Test
+    fun ignoresBalanceValueWhenLabelIsAfterIt() {
+        val texts = listOf("R$ 845,20", "Saldo disponível", "R$ 10,32", "3 min • 1.0 km", "8 min • 2.0 km", "Aceitar")
+        assertEquals(10.32, OfferParser.parse(texts, "99")!!.price, 0.001)
+    }
+
+    @Test
+    fun ignoresUnlabelledBalanceFarFromTheCard() {
+        // valor solto no topo da tela (sem rótulo) e longe do card da oferta
+        val filler = List(14) { "Mapa $it" }
+        val texts = listOf("R$ 845,20") + filler + listOf("R$ 10,32", "3 min • 1.0 km", "8 min • 2.0 km", "Aceitar")
+        assertEquals(10.32, OfferParser.parse(texts, "Uber")!!.price, 0.001)
+    }
+
+    @Test
+    fun balanceScreenWithoutAcceptButtonIsNotAnOffer() {
+        val texts = listOf("Saldo total", "R$ 845,20", "12 min (5 km)", "20 min (9 km)")
+        assertNull(OfferParser.parse(texts, "99"))
+    }
+
+    @Test
+    fun ignoresEarningsHeaderOnOcrToo() {
+        val texts = listOf("Ganhos de hoje", "R$ 312,40", "R$ 10,32", "3 min • 1.0 km", "8 min • 2.0 km", "Aceitar")
+        assertEquals(10.32, OfferParser.parse(texts, "Uber", strict = true)!!.price, 0.001)
+    }
 }

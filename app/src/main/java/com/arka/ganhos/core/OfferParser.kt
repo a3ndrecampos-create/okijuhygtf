@@ -21,6 +21,17 @@ object OfferParser {
     /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
     private val exactCues = setOf("viagem", "entrega", "aceitar", "accept")
     private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
+    /** Textos de telas/rodapés de dinheiro do motorista (saldo, ganhos...): o R$ vizinho NUNCA é o valor da corrida. */
+    private val balanceWords = Regex(
+        """saldo|ganhos|carteira|extrato|repasse|resgat|saque|sacar|balance|earnings|wallet""",
+        RegexOption.IGNORE_CASE
+    )
+    /** R$ que aparece no card mas não é o preço da corrida (bônus, pedágio, "R$/km"). */
+    private val notPriceWords = Regex("""inclu[ií]d|b[oô]nus|bonus|ped[aá]gio""", RegexOption.IGNORE_CASE)
+    private val perKmAfter = Regex("""^\s*/\s*km""", RegexOption.IGNORE_CASE)
+    private class Money(val node: Int, val value: Double, val soft: Boolean)
+    /** Distância máxima (em textos) entre o preço e a primeira rota ("3 min • 1 km") dentro do card da oferta. */
+    private const val NEAR_NODES = 8
 
     /**
      * Os apps usam espaço não separável (U+00A0, U+202F), marcas invisíveis e bullets variados.
@@ -46,31 +57,66 @@ object OfferParser {
         val low = joined.lowercase()
         val hasCue = cues.any { low.contains(it) } || texts.any { it.trim().lowercase() in exactCues }
 
-        val candidates = money.findAll(joined)
-            .mapNotNull { toDouble(it.groupValues[1]) }
-            .filter { it in 2.0..2000.0 }
-            .toList()
+        // Posição de cada texto dentro de "joined": serve para saber a qual texto (nó) cada R$ / rota pertence.
+        val offsets = IntArray(texts.size)
+        var pos = 0
+        for (i in texts.indices) { offsets[i] = pos; pos += texts[i].length + 2 }
+        fun nodeAt(p: Int): Int { var n = 0; for (i in offsets.indices) { if (offsets[i] <= p) n = i else break }; return n }
 
-        val pairs = pair.findAll(joined).map {
+        // Valores em R$ que podem ser o preço da corrida. Fora: saldo/ganhos do app, bônus incluídos, R$/km.
+        val items = money.findAll(joined).mapNotNull { m ->
+            val v = toDouble(m.groupValues[1]) ?: return@mapNotNull null
+            if (v !in 2.0..2000.0) return@mapNotNull null
+            val node = nodeAt(m.range.first)
+            val after = joined.substring(m.range.last + 1, minOf(joined.length, m.range.last + 12))
+            if (perKmAfter.containsMatchIn(after)) return@mapNotNull null
+            if (notPriceWords.containsMatchIn(texts[node])) return@mapNotNull null
+            // rótulo no próprio texto ("Saldo: R$ 845,20"): com certeza não é a corrida
+            if (balanceWords.containsMatchIn(texts[node])) return@mapNotNull null
+            // rótulo no texto vizinho ("Saldo total" / "R$ 845,20"): provável saldo, mas pode ser o rótulo do outro valor
+            val soft = listOf(node - 1, node + 1).filter { it in texts.indices }
+                .any { balanceWords.containsMatchIn(texts[it]) }
+            Money(node, v, soft)
+        }.toList()
+
+        val pairMatches = pair.findAll(joined).toList()
+        val firstPairNode = pairMatches.firstOrNull()?.let { nodeAt(it.range.first) }
+        val pairs = pairMatches.map {
             val h = it.groupValues[1].toIntOrNull() ?: 0
             val m = it.groupValues[2].toIntOrNull() ?: 0
             var km = toDouble(it.groupValues[3]) ?: 0.0
             val u = it.groupValues[4].lowercase()
             if (!u.startsWith("k") && !u.startsWith("q")) km /= 1000.0
             Pair(h * 60 + m, km)
-        }.toList()
+        }
 
         val shown = shownPerKm.find(joined)?.groupValues?.get(1)?.let { toDouble(it) }?.takeIf { it > 0.0 }
         val pairKm = if (pairs.size >= 2) pairs[0].second + pairs[1].second else null
 
         // Qual R$ é o valor da corrida? 1) o do botão "Aceitar por R$"; 2) o que fecha com o R$/km e os km do card
-        // (no "Negocia" da 99 há contrapropostas maiores); 3) o maior valor.
+        // (no "Negocia" da 99 há contrapropostas maiores); 3) o maior valor PERTO das rotas do card
+        // (um R$ longe delas costuma ser o saldo/ganhos do app, não a corrida).
+        val candidates = items.map { it.value }
         val price = acceptPrice.find(joined)?.groupValues?.get(1)?.let { toDouble(it) }
             ?: (if (shown != null && pairKm != null) {
                 candidates.minByOrNull { kotlin.math.abs(it / shown - pairKm) }
                     ?.takeIf { kotlin.math.abs(it / shown - pairKm) <= maxOf(0.5, pairKm * 0.12) }
             } else null)
-            ?: candidates.maxOrNull()
+            ?: run {
+                var pool = items
+                if (firstPairNode != null) {
+                    val near = pool.filter { kotlin.math.abs(it.node - firstPairNode) <= NEAR_NODES }
+                    if (near.isNotEmpty()) pool = near
+                }
+                // valores com rótulo de saldo/ganhos ao lado só valem se não houver outro; nesse caso o mais perto das rotas
+                if (pool.any { !it.soft }) pool = pool.filter { !it.soft }
+                else if (firstPairNode != null) pool = listOfNotNull(pool.minByOrNull { kotlin.math.abs(it.node - firstPairNode) })
+                if (pairKm != null && pairKm > 0.0) {
+                    val plausible = pool.filter { it.value / pairKm in 0.3..15.0 }
+                    if (plausible.isNotEmpty()) pool = plausible
+                }
+                pool.maxOfOrNull { it.value }
+            }
             ?: return null
         val expectedKm = shown?.let { price / it }
 
@@ -97,6 +143,9 @@ object OfferParser {
             val total = pickup.second + trip.second
             if (kotlin.math.abs(total - expectedKm) > maxOf(0.5, expectedKm * 0.12)) return null
         }
+        // Tela de saldo/ganhos sem botão "Aceitar" de verdade: não é uma oferta.
+        val strongCue = low.contains("aceitar") || low.contains("accept") || texts.any { it.trim().lowercase() in exactCues }
+        if (!strongCue && balanceWords.containsMatchIn(low)) return null
         // Sem botão "Aceitar" visível na árvore, só aceita se tiver preço e as duas rotas (retirada + viagem).
         if (!hasCue && pairs.size < 2) return null
         if (trip.second <= 0.0 && trip.first <= 0) return null
