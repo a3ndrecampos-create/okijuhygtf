@@ -34,6 +34,9 @@ class OfferAccessibilityService : AccessibilityService() {
     private var lastScan = 0L
     private var lastSignature = ""
     private var misses = 0
+    private var lastSeenAt = 0L      // última vez que a oferta atual foi lida com sucesso
+    private var pendingSig = ""      // oferta diferente vista por OCR, aguardando confirmação
+    private var pendingCount = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -47,11 +50,14 @@ class OfferAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || !settings.monitoring) return
         val now = SystemClock.elapsedRealtime()
-        if (now - lastScan < 300) {
+        // Com o cartão na tela a oferta já foi lida: varrer a árvore a cada 300 ms só pesa a thread principal
+        // (e faz a barrinha/contagem do cartão engasgar). Nesse caso lê no máximo ~1x por segundo.
+        val minGap = if (overlay.isShowing) 900L else 300L
+        if (now - lastScan < minGap) {
             // Evento caiu na janela de 300 ms: agenda uma leitura final, senão a oferta
             // pode ficar sem leitura quando o app para de emitir eventos (contagem do botão Aceitar).
             handler.removeCallbacks(trailingScan)
-            handler.postDelayed(trailingScan, 350)
+            handler.postDelayed(trailingScan, minGap + 50)
             return
         }
         scan()
@@ -77,9 +83,10 @@ class OfferAccessibilityService : AccessibilityService() {
             DiagnosticsStore.publish("(nenhum app de corrida lido)", pkgs.map { "janela: $it" }, null)
         }
         if (offer == null) {
-            if (!ocrShown && ++misses >= 4) {
+            if (!ocrShown && ++misses >= 4 && SystemClock.elapsedRealtime() - lastSeenAt > GONE_MS) {
                 misses = 0
                 lastSignature = ""
+                pendingSig = ""
                 overlay.hide()
             }
             // Oferta pode aparecer um instante depois do evento: continua tentando enquanto o app alvo está na tela.
@@ -99,9 +106,28 @@ class OfferAccessibilityService : AccessibilityService() {
         handleOffer(offer, s)
     }
 
-    private fun handleOffer(offer: RideOffer, s: AppSettings) {
+    private fun handleOffer(offer: RideOffer, s: AppSettings, fromOcr: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
         val sig = offer.price.toString() + "|" + offer.totalKm + "|" + offer.totalMin
-        if (sig == lastSignature) return
+
+        // A oferta anterior sumiu de verdade (ficou um tempo sem ser lida): a próxima conta como nova,
+        // mesmo que tenha os mesmos valores. Falhas curtas de leitura NÃO contam como "sumiu".
+        if (lastSignature.isNotEmpty() && now - lastSeenAt > GONE_MS) lastSignature = ""
+        lastSeenAt = now
+
+        // Mesma oferta ainda na tela: não mostra de novo, não regrava no histórico, não reinicia a contagem.
+        if (sig == lastSignature) { pendingSig = ""; return }
+
+        // A leitura por imagem (OCR) é ruidosa e o mesmo cartão pode sair com números diferentes de uma
+        // leitura para outra. Com uma oferta ainda ativa (mesmo que o semáforo já tenha sumido pelo tempo),
+        // só troca quando a leitura nova se repete.
+        if (fromOcr && lastSignature.isNotEmpty()) {
+            if (sig != pendingSig) { pendingSig = sig; pendingCount = 1; return }
+            pendingCount++
+            if (pendingCount < 2) return
+        }
+        pendingSig = ""
+        pendingCount = 0
         lastSignature = sig
 
         val a = Calculator.analyze(offer, s)
@@ -109,7 +135,7 @@ class OfferAccessibilityService : AccessibilityService() {
             HistoryEntry(System.currentTimeMillis(), offer.price, offer.totalKm, offer.totalMin,
                 a.perKm, a.perHour, a.profit, a.verdict, offer.source, offer.rating)
         )
-        if (s.overlayEnabled) overlay.show(a, s.overlaySeconds, s.overlayPosition)
+        if (s.overlayEnabled) overlay.show(a, s.overlaySeconds, s.overlayPosition, sig)
     }
 
     // ---------- Plano B: OCR da captura de tela (Android 11+) ----------
@@ -156,6 +182,7 @@ class OfferAccessibilityService : AccessibilityService() {
                 overlay.hide()
                 ocrShown = false
                 lastSignature = ""
+                pendingSig = ""
                 return
             }
             ocrSource = src
@@ -244,12 +271,13 @@ class OfferAccessibilityService : AccessibilityService() {
             ocrShown = true
             ocrMisses = 0
             misses = 0
-            handleOffer(offer, s)   // oferta nova (assinatura diferente) substitui o cartão anterior
-        } else if (++ocrMisses >= 3) {
+            handleOffer(offer, s, fromOcr = true)   // oferta nova (assinatura diferente, confirmada) substitui o cartão anterior
+        } else if (++ocrMisses >= 3 && SystemClock.elapsedRealtime() - lastSeenAt > GONE_MS) {
             // Cartão da Uber saiu da tela (aceita, recusada ou expirada): some o semáforo e libera a próxima.
             ocrMisses = 0
             if (ocrShown) { overlay.hide(); ocrShown = false }
             lastSignature = ""
+            pendingSig = ""
         }
     }
 
@@ -307,6 +335,9 @@ class OfferAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        /** Tempo sem ler a oferta para considerar que ela saiu da tela (e não foi só uma falha de leitura). */
+        private const val GONE_MS = 2500L
+
         /** Linhas do cartão do próprio Arka, caso apareçam na captura. */
         private val OWN_LINES = setOf("r\$/km", "r\$/hora", "lucro", "aceite", "avalie", "recuse")
 

@@ -22,13 +22,16 @@ class OverlayController(private val ctx: Context) {
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val handler = Handler(Looper.getMainLooper())
     private var view: View? = null
-    private val hider = Runnable { hide() }
+    private var hider: Runnable? = null
     private var shownAt = 0L
     private var lifetimeMs = 0L
+    private var currentKey: String? = null
+    /** Toda view adicionada à janela fica aqui até ser removida: nenhum cartão pode ficar órfão na tela. */
+    private val attached = HashSet<View>()
 
     /** Rede de segurança: se o temporizador do Handler se perder, quem chamar isto fecha o cartão vencido. */
     fun expireIfStale() {
-        if (view != null && SystemClock.elapsedRealtime() - shownAt > lifetimeMs + 1500) hide()
+        if (view != null && SystemClock.elapsedRealtime() - shownAt > lifetimeMs + 800) hide()
     }
     val isShowing: Boolean get() = view != null
 
@@ -51,8 +54,14 @@ class OverlayController(private val ctx: Context) {
         Verdict.RED -> "RECUSE"
     }
 
-    fun show(a: Analysis, seconds: Int, position: Int = 0) {
-        hide()
+    /**
+     * [key] identifica a oferta. Se o cartão dessa mesma oferta já está na tela, não faz nada:
+     * não recria o cartão nem reinicia a contagem. Oferta diferente substitui o cartão anterior
+     * (que é removido por completo) e começa uma contagem nova.
+     */
+    fun show(a: Analysis, seconds: Int, position: Int = 0, key: String = "") {
+        if (view != null && key.isNotEmpty() && key == currentKey) return
+        removeAll()
         val card = build(a, seconds)
         val lp = WindowManager.LayoutParams(
             ctx.resources.displayMetrics.widthPixels - dp(24),
@@ -68,19 +77,44 @@ class OverlayController(private val ctx: Context) {
         }
         try {
             wm.addView(card, lp)
-            shownAt = SystemClock.elapsedRealtime()
-            lifetimeMs = seconds * 1000L
-            animateIn(card)
-            view = card
-            handler.postDelayed(hider, seconds * 1000L)
         } catch (_: Exception) {
+            return
         }
+        // Registra o cartão ANTES de qualquer outra coisa: se algo abaixo falhar, ele ainda pode ser removido.
+        attached.add(card)
+        view = card
+        currentKey = key
+        shownAt = SystemClock.elapsedRealtime()
+        lifetimeMs = seconds * 1000L
+        try { animateIn(card) } catch (_: Exception) {}
+        // Um temporizador por cartão: um temporizador antigo nunca fecha (nem deixa de fechar) o cartão novo.
+        val r = Runnable { if (view === card) hide() else detach(card) }
+        hider = r
+        handler.postDelayed(r, lifetimeMs)
     }
 
-    fun hide() {
-        handler.removeCallbacks(hider)
-        view?.let { try { wm.removeView(it) } catch (_: Exception) {} }
+    fun hide() = removeAll()
+
+    private fun removeAll() {
+        hider?.let { handler.removeCallbacks(it) }
+        hider = null
+        for (v in attached.toList()) detach(v)
+        attached.clear()
         view = null
+        currentKey = null
+    }
+
+    private fun detach(v: View) {
+        try {
+            v.animate().cancel()
+            ((v.tag as? Pair<*, *>)?.first as? View)?.animate()?.cancel()
+        } catch (_: Exception) {}
+        try {
+            wm.removeViewImmediate(v)
+        } catch (_: Exception) {
+            try { wm.removeView(v) } catch (_: Exception) {}
+        }
+        attached.remove(v)
     }
 
     private fun tv(text: String, sp: Float, color: Int, bold: Boolean = false) = TextView(ctx).apply {
