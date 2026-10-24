@@ -112,7 +112,11 @@ class OfferAccessibilityService : AccessibilityService() {
     }
 
     // ---------- Plano B: OCR da captura de tela (Android 11+) ----------
-    private var ocrBusy = false
+    @Volatile private var ocrBusy = false
+    private var lastShotAt = 0L
+    private var lastTargetCheck = 0L
+    private var cachedSrc: String? = null
+    private val shotExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var ocrShown = false
     private var ocrMisses = 0
     private var ocrLoopOn = false
@@ -126,17 +130,25 @@ class OfferAccessibilityService : AccessibilityService() {
      */
     private val ocrTick = object : Runnable {
         override fun run() {
-            val src = if (settings.monitoring && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) targetOnScreen() else null
+            val now = SystemClock.elapsedRealtime()
+            // Qual app está na tela só é conferido 1x por segundo (conferir janelas é caro).
+            if (now - lastTargetCheck > 1000 || cachedSrc == null) {
+                cachedSrc = if (settings.monitoring && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) targetOnScreen() else null
+                lastTargetCheck = now
+            }
+            val src = cachedSrc
             if (src == null) {
                 ocrLoopOn = false
                 if (ocrShown) { overlay.hide(); ocrShown = false }
                 lastSignature = ""
                 return
             }
-            // Se a leitura por texto acabou de achar a oferta, não precisa gastar bateria com imagem.
             ocrSource = src
-            if (SystemClock.elapsedRealtime() - lastTreeOfferAt > 4000) runOcr()
-            handler.postDelayed(this, if (overlay.isShowing) 600L else 400L)
+            // Nova captura assim que a anterior termina (mínimo de ~0,34 s: limite do Android entre capturas).
+            // Se a leitura por texto acabou de achar a oferta, não precisa gastar bateria com imagem.
+            val gap = if (overlay.isShowing) 600L else 340L
+            if (!ocrBusy && now - lastShotAt >= gap && now - lastTreeOfferAt > 4000) runOcr()
+            handler.postDelayed(this, 80)
         }
     }
 
@@ -159,24 +171,32 @@ class OfferAccessibilityService : AccessibilityService() {
     private fun runOcr() {
         if (ocrBusy) return
         ocrBusy = true
+        lastShotAt = SystemClock.elapsedRealtime()
         shoot()
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
     private fun shoot() {
         try {
-            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+            takeScreenshot(Display.DEFAULT_DISPLAY, shotExecutor, object : TakeScreenshotCallback {
                 override fun onSuccess(result: ScreenshotResult) {
                     val bmp: Bitmap? = try {
                         val hw = Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace)
                         val copy = hw?.copy(Bitmap.Config.ARGB_8888, false)
                         hw?.recycle()
-                        // O cartão da oferta fica na parte de baixo: descarta os 30% de cima (onde fica o cartão do Arka: nunca aparece na leitura e não precisa piscar) (OCR mais rápido).
+                        // O cartão da oferta fica na parte de baixo: descarta os 30% de cima (onde fica o semáforo do Arka)
+                        // e a barra de navegação. Depois reduz para ~720 px de largura: o OCR fica bem mais rápido.
                         copy?.let {
                             val top = (it.height * 0.30f).toInt()
-                            val cut = Bitmap.createBitmap(it, 0, top, it.width, it.height - top)
+                            val h = (it.height * 0.64f).toInt()
+                            val cut = Bitmap.createBitmap(it, 0, top, it.width, h)
                             if (cut !== it) it.recycle()
-                            cut
+                            val maxW = 720
+                            if (cut.width > maxW) {
+                                val scaled = Bitmap.createScaledBitmap(cut, maxW, cut.height * maxW / cut.width, true)
+                                if (scaled !== cut) cut.recycle()
+                                scaled
+                            } else cut
                         }
                     } catch (e: Exception) { null }
                     try { result.hardwareBuffer.close() } catch (_: Exception) {}
@@ -264,6 +284,8 @@ class OfferAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(trailingScan)
+        handler.removeCallbacks(ocrTick)
+        shotExecutor.shutdown()
         try { recognizer.close() } catch (_: Exception) {}
         if (::overlay.isInitialized) overlay.hide()
         scope.cancel()
