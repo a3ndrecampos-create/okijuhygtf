@@ -125,4 +125,29 @@ class OfferParserTest {
         assertEquals(7.8, o.tripKm, 0.001)
         assertEquals(12, o.tripMin)
     }
+
+    @Test
+    fun recoversMissingPickupFromShownPerKm() {
+        // OCR leu só a viagem; 35,20 ÷ 1,88 = 18,7 km no total
+        val texts = listOf("Dinheiro", "R$35,20", "R$1,88/km", "Toque abaixo para aceitar", "30 min (16,4 km)")
+        val o = OfferParser.parse(texts, "99", strict = true)!!
+        assertEquals(16.4, o.tripKm, 0.001)
+        assertEquals(2.3, o.pickupKm, 0.05)
+    }
+
+    @Test
+    fun strictModeWaitsWhenTotalsDoNotMatch() {
+        // "2,3" lido como "23": total 39,4 km não fecha com 18,7 km
+        val texts = listOf("R$35,20", "R$1,88/km", "Toque abaixo para aceitar", "7 min (23 km)", "30 min (16,4 km)")
+        assertNull(OfferParser.parse(texts, "99", strict = true))
+        assertNotNull(OfferParser.parse(texts, "99"))
+    }
+
+    @Test
+    fun toleratesOcrTypos() {
+        val texts = listOf("R$35,20", "Toque abaixo para aceitar", "7 rnin (2,3 kn)", "30 mín (16,4 km)")
+        val o = OfferParser.parse(texts, "99")!!
+        assertEquals(2.3, o.pickupKm, 0.001)
+        assertEquals(16.4, o.tripKm, 0.001)
+    }
 }

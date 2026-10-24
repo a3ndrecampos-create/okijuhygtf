@@ -9,9 +9,11 @@ import com.arka.ganhos.data.RideOffer
 object OfferParser {
     private val money = Regex("""R(?:\$|S)\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})""")
     private val pair = Regex(
-        """(?:(\d+)\s*h(?:oras?)?\s*(?:e\s*)?)?(\d+)\s*min(?:utos?)?[\s(•·|,.:*~\-–]*(\d+(?:[.,]\d+)?)\s*(km|quil[oô]metros?|metros?|m)\b""",
+        """(?:(\d+)\s*h(?:oras?)?\s*(?:e\s*)?)?(\d+)\s*(?:m[ií1]n|rn[ií]n)(?:utos?)?[\s(•·|,.:*~\-–]*(\d+(?:[.,]\d+)?)\s*(km|k\s?m|kn|krn|quil[oô]metros?|metros?|m)\b""",
         RegexOption.IGNORE_CASE
     )
+    // "R$1,88/km" (99) ou "Est. de R$3,44/km" (Uber): serve para conferir/recuperar os km totais (preço ÷ R$/km)
+    private val shownPerKm = Regex("""R(?:\$|S)\s*(\d+[.,]\d{1,2})\s*/\s*km""", RegexOption.IGNORE_CASE)
     // "4,91 (944)", "4,90" ou "4,98 • 124 corridas" (99)
     private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?(?:\s*[•·|\-–]\s*\d+\s*corridas?.*)?\s*$""")
     /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
@@ -32,7 +34,11 @@ object OfferParser {
         return s.toDoubleOrNull()
     }
 
-    fun parse(rawTexts: List<String>, source: String): RideOffer? {
+    /**
+     * @param strict leitura por imagem (OCR): em vez de aceitar uma leitura incompleta/errada (ex.: só uma das
+     * duas rotas), recupera os km pelo "R$/km" do próprio card ou espera a próxima leitura.
+     */
+    fun parse(rawTexts: List<String>, source: String, strict: Boolean = false): RideOffer? {
         val texts = rawTexts.map { normalize(it) }
         val joined = texts.joinToString("  ")
         val low = joined.lowercase()
@@ -47,16 +53,36 @@ object OfferParser {
             val h = it.groupValues[1].toIntOrNull() ?: 0
             val m = it.groupValues[2].toIntOrNull() ?: 0
             var km = toDouble(it.groupValues[3]) ?: 0.0
-            if (!it.groupValues[4].startsWith("k", true) && !it.groupValues[4].startsWith("q", true)) km /= 1000.0
+            val u = it.groupValues[4].lowercase()
+            if (!u.startsWith("k") && !u.startsWith("q")) km /= 1000.0
             Pair(h * 60 + m, km)
         }.toList()
+
+        val shown = shownPerKm.find(joined)?.groupValues?.get(1)?.let { toDouble(it) }?.takeIf { it > 0.0 }
+        val expectedKm = shown?.let { price / it }
 
         val pickup: Pair<Int, Double>
         val trip: Pair<Int, Double>
         when {
             pairs.size >= 2 -> { pickup = pairs[0]; trip = pairs[1] }
-            pairs.size == 1 -> { pickup = Pair(0, 0.0); trip = pairs[0] }
+            pairs.size == 1 -> {
+                val p = pairs[0]
+                if (expectedKm != null && expectedKm > p.second * 1.05 + 0.15) {
+                    // Só uma rota foi lida: a retirada é o que falta para fechar o total do card.
+                    val pk = expectedKm - p.second
+                    val pm = if (p.second > 0) Math.round(p.first / p.second * pk).toInt() else 0
+                    pickup = Pair(pm, pk); trip = p
+                } else {
+                    if (strict) return null
+                    pickup = Pair(0, 0.0); trip = p
+                }
+            }
             else -> return null
+        }
+        // Confere com o R$/km do card: leitura que não fecha (dígito errado, texto cortado) espera a próxima.
+        if (strict && expectedKm != null) {
+            val total = pickup.second + trip.second
+            if (kotlin.math.abs(total - expectedKm) > maxOf(0.5, expectedKm * 0.12)) return null
         }
         // Sem botão "Aceitar" visível na árvore, só aceita se tiver preço e as duas rotas (retirada + viagem).
         if (!hasCue && pairs.size < 2) return null

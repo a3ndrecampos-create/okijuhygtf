@@ -204,7 +204,7 @@ class OfferAccessibilityService : AccessibilityService() {
             .sortedWith(compareBy({ (it.boundingBox?.top ?: 0) / 20 }, { it.boundingBox?.left ?: 0 }))
             .map { it.text }
             .filter { it.trim().lowercase() !in OWN_LINES }
-        val offer = OfferParser.parse(lines, ocrSource)
+        val offer = OfferParser.parse(lines, ocrSource, strict = true)
         if (s.diagnostics) DiagnosticsStore.publish("$ocrSource (OCR)", lines, offer)
         if (offer != null) {
             ocrShown = true
