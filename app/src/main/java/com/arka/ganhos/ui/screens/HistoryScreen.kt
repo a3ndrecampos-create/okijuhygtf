@@ -63,7 +63,7 @@ private fun MiniTile(value: String, label: String, modifier: Modifier = Modifier
 }
 
 @Composable
-fun HistoryRow(e: HistoryEntry, onDelete: () -> Unit) {
+fun HistoryRow(e: HistoryEntry, onDelete: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val shape = RoundedCornerShape(20.dp)
     val c = e.verdict.color()
@@ -126,10 +126,12 @@ fun HistoryRow(e: HistoryEntry, onDelete: () -> Unit) {
                 Icons.Rounded.Share, contentDescription = "Compartilhar", tint = TextLo,
                 modifier = Modifier.size(40.dp).clip(CircleShape).clickable { shareEntry(ctx, e) }.padding(9.dp)
             )
-            Icon(
-                Icons.Rounded.DeleteOutline, contentDescription = "Excluir", tint = Red,
-                modifier = Modifier.size(40.dp).clip(CircleShape).clickable { onDelete() }.padding(9.dp)
-            )
+            if (onDelete != null) {
+                Icon(
+                    Icons.Rounded.DeleteOutline, contentDescription = "Excluir", tint = Red,
+                    modifier = Modifier.size(40.dp).clip(CircleShape).clickable { onDelete() }.padding(9.dp)
+                )
+            }
         }
     }
 }
