@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.rotacerta.app"
+    namespace = "com.arka.ganhos"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.rotacerta.app"
+        applicationId = "com.arka.ganhos"
         minSdk = 26
         targetSdk = 34
         versionCode = 2

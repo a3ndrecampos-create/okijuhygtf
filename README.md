@@ -1,4 +1,4 @@
-# Rota Certa
+# Arka - Cálculo de Ganhos
 
 App Android (Kotlin + Jetpack Compose) que lê a oferta de corrida na tela do Uber, 99 e inDrive
 e mostra um semáforo (verde / amarelo / vermelho) com R$/km, R$/hora e lucro real.
@@ -6,7 +6,7 @@ e mostra um semáforo (verde / amarelo / vermelho) com R$/km, R$/hora e lucro re
 ## Gerar o APK no GitHub
 1. Crie um repositório e envie todos os arquivos (inclusive a pasta `.github`).
 2. Aba **Actions** > **Build APK** > **Run workflow** (também roda a cada push). Os testes rodam antes do build.
-3. Baixe o artefato **RotaCerta-APK** (`RotaCerta-debug.apk` e `RotaCerta-release.apk`).
+3. Baixe o artefato **Arka-APK** (`Arka-debug.apk` e `Arka-release.apk`).
 4. Para publicar uma versão: crie uma tag `v1.1.0` e o APK vai para a aba **Releases**.
 
 ## Instalar e ativar
