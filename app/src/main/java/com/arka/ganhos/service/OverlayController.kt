@@ -6,6 +6,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -22,6 +23,13 @@ class OverlayController(private val ctx: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var view: View? = null
     private val hider = Runnable { hide() }
+    private var shownAt = 0L
+    private var lifetimeMs = 0L
+
+    /** Rede de segurança: se o temporizador do Handler se perder, quem chamar isto fecha o cartão vencido. */
+    fun expireIfStale() {
+        if (view != null && SystemClock.elapsedRealtime() - shownAt > lifetimeMs + 1500) hide()
+    }
     val isShowing: Boolean get() = view != null
 
     /** Esconde/mostra o cartão sem removê-lo (usado para tirar a captura de tela sem ele aparecer). */
@@ -60,6 +68,8 @@ class OverlayController(private val ctx: Context) {
         }
         try {
             wm.addView(card, lp)
+            shownAt = SystemClock.elapsedRealtime()
+            lifetimeMs = seconds * 1000L
             animateIn(card)
             view = card
             handler.postDelayed(hider, seconds * 1000L)

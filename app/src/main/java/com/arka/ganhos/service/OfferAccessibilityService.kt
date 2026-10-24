@@ -60,6 +60,7 @@ class OfferAccessibilityService : AccessibilityService() {
     private fun scan() {
         val s = settings
         if (!s.monitoring) return
+        overlay.expireIfStale()
         lastScan = SystemClock.elapsedRealtime()
 
         var offer: RideOffer? = null
@@ -130,7 +131,19 @@ class OfferAccessibilityService : AccessibilityService() {
      */
     private val ocrTick = object : Runnable {
         override fun run() {
+            try {
+                tick()
+            } catch (e: Exception) {
+                // nunca deixa o laço morrer: o cartão precisa sempre poder sumir
+            }
+            if (ocrLoopOn) handler.postDelayed(this, 80)
+        }
+
+        private fun tick() {
             val now = SystemClock.elapsedRealtime()
+            overlay.expireIfStale()
+            // Captura que nunca respondeu (tela apagada, app protegido): destrava para não parar de ler.
+            if (ocrBusy && now - lastShotAt > 4000) ocrBusy = false
             // Qual app está na tela só é conferido 1x por segundo (conferir janelas é caro).
             if (now - lastTargetCheck > 1000 || cachedSrc == null) {
                 cachedSrc = if (settings.monitoring && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) targetOnScreen() else null
@@ -138,8 +151,10 @@ class OfferAccessibilityService : AccessibilityService() {
             }
             val src = cachedSrc
             if (src == null) {
+                // O app de corrida saiu da tela: o cartão do Arka não fica para trás.
                 ocrLoopOn = false
-                if (ocrShown) { overlay.hide(); ocrShown = false }
+                overlay.hide()
+                ocrShown = false
                 lastSignature = ""
                 return
             }
@@ -148,7 +163,6 @@ class OfferAccessibilityService : AccessibilityService() {
             // Se a leitura por texto acabou de achar a oferta, não precisa gastar bateria com imagem.
             val gap = if (overlay.isShowing) 600L else 340L
             if (!ocrBusy && now - lastShotAt >= gap && now - lastTreeOfferAt > 4000) runOcr()
-            handler.postDelayed(this, 80)
         }
     }
 
