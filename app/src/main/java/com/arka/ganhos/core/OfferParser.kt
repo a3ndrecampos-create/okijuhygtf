@@ -14,8 +14,10 @@ object OfferParser {
     )
     // "R$1,88/km" (99) ou "Est. de R$3,44/km" (Uber): serve para conferir/recuperar os km totais (preço ÷ R$/km)
     private val shownPerKm = Regex("""R(?:\$|S)\s*(\d+[.,]\d{1,2})\s*/\s*km""", RegexOption.IGNORE_CASE)
+    // Botão "Aceitar por R$17,76" (99 Negocia): é o valor da oferta; os outros R$ do card são contrapropostas
+    private val acceptPrice = Regex("""aceitar\s+por\s+R(?:\$|S)\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})""", RegexOption.IGNORE_CASE)
     // "4,91 (944)", "4,90" ou "4,98 • 124 corridas" (99)
-    private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?(?:\s*[•·|\-–]\s*\d+\s*corridas?.*)?\s*$""")
+    private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?(?:\s*[•·|\-–]\s*\+?\d+\s*corridas?.*)?\s*$""")
     /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
     private val exactCues = setOf("viagem", "entrega", "aceitar", "accept")
     private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
@@ -44,10 +46,10 @@ object OfferParser {
         val low = joined.lowercase()
         val hasCue = cues.any { low.contains(it) } || texts.any { it.trim().lowercase() in exactCues }
 
-        val price = money.findAll(joined)
+        val candidates = money.findAll(joined)
             .mapNotNull { toDouble(it.groupValues[1]) }
             .filter { it in 2.0..2000.0 }
-            .maxOrNull() ?: return null
+            .toList()
 
         val pairs = pair.findAll(joined).map {
             val h = it.groupValues[1].toIntOrNull() ?: 0
@@ -59,6 +61,17 @@ object OfferParser {
         }.toList()
 
         val shown = shownPerKm.find(joined)?.groupValues?.get(1)?.let { toDouble(it) }?.takeIf { it > 0.0 }
+        val pairKm = if (pairs.size >= 2) pairs[0].second + pairs[1].second else null
+
+        // Qual R$ é o valor da corrida? 1) o do botão "Aceitar por R$"; 2) o que fecha com o R$/km e os km do card
+        // (no "Negocia" da 99 há contrapropostas maiores); 3) o maior valor.
+        val price = acceptPrice.find(joined)?.groupValues?.get(1)?.let { toDouble(it) }
+            ?: (if (shown != null && pairKm != null) {
+                candidates.minByOrNull { kotlin.math.abs(it / shown - pairKm) }
+                    ?.takeIf { kotlin.math.abs(it / shown - pairKm) <= maxOf(0.5, pairKm * 0.12) }
+            } else null)
+            ?: candidates.maxOrNull()
+            ?: return null
         val expectedKm = shown?.let { price / it }
 
         val pickup: Pair<Int, Double>

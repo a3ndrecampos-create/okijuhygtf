@@ -85,5 +85,6 @@ data class HistoryEntry(
     val perHour: Double,
     val profit: Double,
     val verdict: Verdict,
-    val source: String
+    val source: String,
+    val rating: Double? = null
 )

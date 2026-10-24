@@ -20,6 +20,13 @@ class HistoryRepository(context: Context) {
     }
 
     @Synchronized
+    fun remove(timestamp: Long) {
+        val list = _items.value.filterNot { it.timestamp == timestamp }
+        _items.value = list
+        save(list)
+    }
+
+    @Synchronized
     fun clear() {
         _items.value = emptyList()
         save(emptyList())
@@ -32,7 +39,8 @@ class HistoryRepository(context: Context) {
             HistoryEntry(
                 o.getLong("t"), o.getDouble("p"), o.getDouble("km"), o.getInt("min"),
                 o.getDouble("pkm"), o.getDouble("ph"), o.getDouble("pr"),
-                Verdict.valueOf(o.getString("v")), o.optString("s")
+                Verdict.valueOf(o.getString("v")), o.optString("s"),
+                if (o.has("r")) o.getDouble("r") else null
             )
         }
     } catch (e: Exception) {
@@ -46,6 +54,7 @@ class HistoryRepository(context: Context) {
                 put("t", e.timestamp); put("p", e.price); put("km", e.totalKm); put("min", e.totalMin)
                 put("pkm", e.perKm); put("ph", e.perHour); put("pr", e.profit)
                 put("v", e.verdict.name); put("s", e.source)
+                e.rating?.let { put("r", it) }
             })
         }
         prefs.edit().putString("items", arr.toString()).apply()

@@ -106,7 +106,7 @@ class OfferAccessibilityService : AccessibilityService() {
         val a = Calculator.analyze(offer, s)
         rotaApp.history.add(
             HistoryEntry(System.currentTimeMillis(), offer.price, offer.totalKm, offer.totalMin,
-                a.perKm, a.perHour, a.profit, a.verdict, offer.source)
+                a.perKm, a.perHour, a.profit, a.verdict, offer.source, offer.rating)
         )
         if (s.overlayEnabled) overlay.show(a, s.overlaySeconds, s.overlayPosition)
     }

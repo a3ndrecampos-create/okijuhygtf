@@ -150,4 +150,30 @@ class OfferParserTest {
         assertEquals(2.3, o.pickupKm, 0.001)
         assertEquals(16.4, o.tripKm, 0.001)
     }
+
+    @Test
+    fun parses99NegociaCardIgnoringCounterOffers() {
+        val texts = listOf(
+            "Negocia • Dinheiro", "R$17,76", "R$1,66/km", "4,91 • +999 corridas • Perfil Premium",
+            "7 min (2,2 km)", "Rua José Micheloni Filho, 83, Jardim Salete",
+            "21 min (8,4 km)", "Estação de Metrô Vila Sônia, Rua Heitor dos Prazeres - Ferreira",
+            "Aceitar por R$17,76", "R$18,65", "R$19,54", "R$20,42"
+        )
+        val o = OfferParser.parse(texts, "99", strict = true)!!
+        assertEquals(17.76, o.price, 0.001)
+        assertEquals(2.2, o.pickupKm, 0.001)
+        assertEquals(8.4, o.tripKm, 0.001)
+        assertEquals(21, o.tripMin)
+        assertEquals(4.91, o.rating!!, 0.001)
+    }
+
+    @Test
+    fun picksPriceThatMatchesPerKmWhenNoAcceptPriceButton() {
+        // contrapropostas maiores que o valor da oferta, sem o botão "Aceitar por"
+        val texts = listOf(
+            "R$17,76", "R$1,66/km", "Toque abaixo para aceitar", "7 min (2,2 km)", "21 min (8,4 km)",
+            "R$18,65", "R$19,54", "R$20,42"
+        )
+        assertEquals(17.76, OfferParser.parse(texts, "99", strict = true)!!.price, 0.001)
+    }
 }

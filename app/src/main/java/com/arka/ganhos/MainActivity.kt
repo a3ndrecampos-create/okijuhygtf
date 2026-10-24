@@ -99,7 +99,7 @@ fun AppRoot() {
                     onMonitoring = { c -> update { it.copy(monitoring = c) } },
                     onEnable = { openAccessibilitySettings(ctx) })
                 1 -> CalculatorScreen(s)
-                2 -> HistoryScreen(history) { app.history.clear() }
+                2 -> HistoryScreen(history, onClear = { app.history.clear() }, onDelete = { app.history.remove(it.timestamp) })
                 else -> SettingsScreen(s, accessOn, update)
             }
         }
