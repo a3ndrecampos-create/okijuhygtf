@@ -94,4 +94,35 @@ class OfferParserTest {
         assertEquals(50.7, o.tripKm, 0.001)
         assertEquals(4.9, o.rating!!, 0.001)
     }
+
+    @Test
+    fun parses99CardWithParenthesesAndNoSpaceAfterReal() {
+        val texts = listOf(
+            "Dinheiro", "R$35,20", "1,4x", "R$1,88/km", "Toque abaixo para aceitar",
+            "R$1,95 por espera longa incl.", "4,98 • 124 corridas", "Perfil Premium",
+            "7 min (2,3 km)", "Avenida Cid Nelson Jordano, 274, Jardim Record",
+            "30 min (16,4 km)", "Rua Leopoldo Couto Magalhães Júnior, 356, Itaim Bibi"
+        )
+        val o = OfferParser.parse(texts, "99")!!
+        assertEquals(35.20, o.price, 0.001)
+        assertEquals(2.3, o.pickupKm, 0.001)
+        assertEquals(7, o.pickupMin)
+        assertEquals(16.4, o.tripKm, 0.001)
+        assertEquals(30, o.tripMin)
+        assertEquals(4.98, o.rating!!, 0.001)
+    }
+
+    @Test
+    fun parses99PriorityCard() {
+        val texts = listOf(
+            "Pgto. no app", "Prioritário", "R$18,06", "1,1x", "R$1,82/km", "Toque abaixo para aceitar",
+            "R$1,95 por corrida noturna incl.", "4,94", "651 corridas", "6 min (2,1 km)",
+            "Rua Alfredo Schultz, 149, Nucleo Res. Isabela", "12 min (7,8 km)", "Mercado Livre - Embu das Artes"
+        )
+        val o = OfferParser.parse(texts, "99")!!
+        assertEquals(18.06, o.price, 0.001)
+        assertEquals(2.1, o.pickupKm, 0.001)
+        assertEquals(7.8, o.tripKm, 0.001)
+        assertEquals(12, o.tripMin)
+    }
 }

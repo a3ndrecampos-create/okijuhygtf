@@ -12,7 +12,8 @@ object OfferParser {
         """(?:(\d+)\s*h(?:oras?)?\s*(?:e\s*)?)?(\d+)\s*min(?:utos?)?[\s(•·|,.:*~\-–]*(\d+(?:[.,]\d+)?)\s*(km|quil[oô]metros?|metros?|m)\b""",
         RegexOption.IGNORE_CASE
     )
-    private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?\s*$""")
+    // "4,91 (944)", "4,90" ou "4,98 • 124 corridas" (99)
+    private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?(?:\s*[•·|\-–]\s*\d+\s*corridas?.*)?\s*$""")
     /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
     private val exactCues = setOf("viagem", "entrega", "aceitar", "accept")
     private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
