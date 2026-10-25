@@ -43,7 +43,7 @@ class OfferParserTest {
 
     @Test
     fun singleDistanceIsTreatedAsTrip() {
-        val o = OfferParser.parse(listOf("R$ 12,00", "15 min (8 km)", "Aceitar"), "inDrive")!!
+        val o = OfferParser.parse(listOf("R$ 12,00", "15 min (8 km)", "Aceitar"), "99")!!
         assertEquals(0, o.pickupMin)
         assertEquals(8.0, o.tripKm, 0.001)
     }
