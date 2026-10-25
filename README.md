@@ -1,6 +1,6 @@
 # Arka - Cálculo de Ganhos
 
-App Android (Kotlin + Jetpack Compose) que lê a oferta de corrida na tela do Uber, 99 e inDrive
+App Android (Kotlin + Jetpack Compose) que lê a oferta de corrida na tela do Uber, 99, inDrive, iFood e Keeta Entregador
 e mostra um semáforo (verde / amarelo / vermelho) com R$/km, R$/hora e lucro real.
 
 ## Publicar na Play Store
@@ -17,8 +17,7 @@ Veja **PUBLICAR.md** (chave de envio, .aab, assinatura mensal, declarações) e 
 2. Android 13+ (APK fora da Play Store): *Informações do app > ⋮ > Permitir configurações restritas*, depois ative em *Acessibilidade*.
 
 ## Se a corrida não for lida
-Em **Ajustes > Modo diagnóstico**, abra o app de corrida, espere uma oferta e toque em **Copiar leitura**.
-Com esse texto dá para ajustar `core/OfferParser.kt` (as expressões regulares) e os testes em `app/src/test`.
+Ajuste as expressões regulares em `core/OfferParser.kt` e os testes em `app/src/test`.
 
 ## Pontos de ajuste
 - Nome: `res/values/strings.xml`. Pacote: `applicationId` em `app/build.gradle.kts`.

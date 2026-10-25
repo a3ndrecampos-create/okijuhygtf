@@ -73,13 +73,7 @@ fun HistoryRow(e: HistoryEntry, onDelete: (() -> Unit)? = null) {
     ) {
         // Linha 1: app, valor, hora e qualidade da corrida
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Surface2),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(e.source.ifBlank { "?" }, color = TextHi, fontWeight = FontWeight.Bold,
-                    fontSize = if (e.source.length <= 4) 13.sp else 10.sp, maxLines = 1)
-            }
+            AppBadge(e.source)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -89,7 +83,7 @@ fun HistoryRow(e: HistoryEntry, onDelete: (() -> Unit)? = null) {
                         color = TextLo, modifier = Modifier.padding(bottom = 3.dp))
                 }
                 Text(
-                    num(e.totalKm, 1) + " km · " + e.totalMin + " min · " + num(e.perKm) + " R\$/km",
+                    num(e.totalKm, 1) + " km · " + (if (e.totalMin > 0) e.totalMin.toString() + " min · " else "") + num(e.perKm) + " R\$/km",
                     style = MaterialTheme.typography.bodySmall, color = TextLo
                 )
             }
@@ -138,8 +132,8 @@ fun HistoryRow(e: HistoryEntry, onDelete: (() -> Unit)? = null) {
 
 private fun shareEntry(ctx: Context, e: HistoryEntry) {
     val pct = if (e.price > 0) Math.round(e.profit / e.price * 100).toInt() else 0
-    val text = "Arka · " + e.source + " · " + money(e.price) + " · " + num(e.totalKm, 1) + " km · " + e.totalMin +
-        " min · " + money(e.perHour) + "/h · lucro " + money(e.profit) + " (" + pct + "%)"
+    val text = "Arka · " + e.source + " · " + money(e.price) + " · " + num(e.totalKm, 1) + " km · " + (if (e.totalMin > 0) e.totalMin.toString() + " min · " + money(e.perHour) + "/h · " else "") +
+        "lucro " + money(e.profit) + " (" + pct + "%)"
     val send = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)

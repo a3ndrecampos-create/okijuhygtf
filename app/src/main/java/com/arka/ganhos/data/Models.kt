@@ -16,7 +16,6 @@ data class AppSettings(
     val overlayEnabled: Boolean = true,
     val overlaySeconds: Int = 12,
     val overlayPosition: Int = 0,
-    val diagnostics: Boolean = false,
     val monitoring: Boolean = true,
     val onboardingDone: Boolean = false,
     /** O usuário aceitou o aviso de Acessibilidade (exigido pela Play Store antes de pedir a permissão). */
@@ -52,7 +51,7 @@ data class Band(val greenKm: Double, val yellowKm: Double, val greenHour: Double
 }
 
 /** Apps com leitura pronta. Para incluir outro (ex.: Keeta, iFood) acrescente aqui e em OfferAccessibilityService.TARGETS. */
-val SUPPORTED_APPS = listOf("Uber", "99", "inDrive")
+val SUPPORTED_APPS = listOf("Uber", "99", "inDrive", "iFood", "Keeta")
 
 enum class Verdict { GREEN, YELLOW, RED }
 
@@ -63,7 +62,11 @@ data class RideOffer(
     val tripKm: Double,
     val tripMin: Int,
     val rating: Double? = null,
-    val source: String = ""
+    val source: String = "",
+    /** false quando o app só mostra a retirada (inDrive): os km da viagem não são conhecidos. */
+    val tripKnown: Boolean = true,
+    /** false quando o card não mostra o tempo (Keeta): só o R$/km vale para o semáforo. */
+    val timeKnown: Boolean = true
 ) {
     val totalKm: Double get() = pickupKm + tripKm
     val totalMin: Int get() = pickupMin + tripMin

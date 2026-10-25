@@ -174,16 +174,24 @@ class OverlayController(private val ctx: Context) {
             if (!last) lp.marginEnd = dp(8)
             row.addView(col, lp)
         }
-        tile("R$/KM", num(a.perKm), white, false)
-        tile("R$/HORA", num(a.perHour, 0), white, false)
-        tile("LUCRO", money(a.profit), profitColor, true)
+        if (a.offer.tripKnown) {
+            tile("R$/KM", num(a.perKm), white, false)
+            tile("R$/HORA", if (a.offer.timeKnown) num(a.perHour, 0) else "—", white, false)
+            tile("LUCRO", money(a.profit), profitColor, true)
+        } else {
+            // inDrive: só a retirada é conhecida
+            tile("RETIRADA", num(a.offer.pickupKm, 1) + " km", white, false)
+            tile("ATÉ O PASSAGEIRO", a.offer.pickupMin.toString() + " min", white, false)
+            tile("NOTA", a.offer.rating?.let { num(it, 1) } ?: "—", white, true)
+        }
         root.addView(row, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(12) })
 
         // Linha 3: motivo + distância total
         root.addView(tv(
-            a.reasons.first() + "  ·  " + num(a.offer.totalKm, 1) + " km · " + a.offer.totalMin + " min",
+            if (a.offer.tripKnown) a.reasons.first() + "  ·  " + num(a.offer.totalKm, 1) + " km" + (if (a.offer.timeKnown) " · " + a.offer.totalMin + " min" else "")
+            else a.reasons.joinToString("  ·  "),
             12f, gray
         ), LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT

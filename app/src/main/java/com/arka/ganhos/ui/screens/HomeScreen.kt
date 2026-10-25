@@ -102,7 +102,7 @@ private fun Hero(accessOn: Boolean, monitoring: Boolean, onMonitoring: (Boolean)
                     )
                     Text(
                         when {
-                            !accessOn -> "Ative a acessibilidade para o semáforo aparecer sobre o Uber, 99 e inDrive."
+                            !accessOn -> "Ative a acessibilidade para o semáforo aparecer sobre o Uber, 99, iFood, Keeta e inDrive."
                             !monitoring -> "Ligue o botão para voltar a analisar as ofertas."
                             else -> "Abra seu app de corridas e fique online. O semáforo aparece sozinho."
                         },

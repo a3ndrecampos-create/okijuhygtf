@@ -15,9 +15,11 @@ object OfferParser {
     // "R$1,88/km" (99) ou "Est. de R$3,44/km" (Uber): serve para conferir/recuperar os km totais (preço ÷ R$/km)
     private val shownPerKm = Regex("""R(?:\$|S)\s*(\d+[.,]\d{1,2})\s*/\s*km""", RegexOption.IGNORE_CASE)
     // Botão "Aceitar por R$17,76" (99 Negocia): é o valor da oferta; os outros R$ do card são contrapropostas
-    private val acceptPrice = Regex("""aceitar\s+por\s+R(?:\$|S)\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})""", RegexOption.IGNORE_CASE)
+    private val acceptPrice = Regex("""aceitar\s+por\s+R(?:\$|S)\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}|\d++(?![.,]\d))""", RegexOption.IGNORE_CASE)
     // "4,91 (944)", "4,90" ou "4,98 • 124 corridas" (99)
     private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?(?:\s*[•·|\-–]\s*\+?\d+\s*corridas?.*)?\s*$""")
+    // inDrive: "5 (5)" (nota inteira e número de corridas entre parênteses)
+    private val ratingInt = Regex("""^\s*[^\d\s]{0,2}\s*([3-5])\s*\(\d+\)\s*$""")
     /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
     private val exactCues = setOf("viagem", "entrega", "aceitar", "accept")
     private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
@@ -47,12 +49,52 @@ object OfferParser {
         return s.toDoubleOrNull()
     }
 
+    private val kmValue = Regex("""(\d+(?:[.,]\d+)?)\s*km\b""", RegexOption.IGNORE_CASE)
+    private val timeValue = Regex("""(?:(\d+)\s*h\s*)?(\d+)\s*min""", RegexOption.IGNORE_CASE)
+
+    /**
+     * iFood entregador: o card traz "R$ 13,83", "Distância total 7,08 km" (rota inteira) e
+     * "Tempo aproximado de rota 40 min". Não há retirada separada: a distância total já vale a rota toda.
+     */
+    private fun parseIfood(texts: List<String>): RideOffer? {
+        val joined = texts.joinToString("  ")
+        val low = joined.lowercase()
+        if (!low.contains("aceitar")) return null
+        val price = money.findAll(joined).mapNotNull { toDouble(it.groupValues[1]) }
+            .firstOrNull { it in 2.0..2000.0 } ?: return null
+        val dIdx = Regex("dist[âa]ncia\\s+total", RegexOption.IGNORE_CASE).find(joined)?.range?.last ?: -1
+        val km = (kmValue.find(joined, maxOf(dIdx, 0)) ?: kmValue.find(joined))
+            ?.groupValues?.get(1)?.let { toDouble(it) } ?: return null
+        val tIdx = Regex("tempo\\s+aproximado", RegexOption.IGNORE_CASE).find(joined)?.range?.last ?: -1
+        val t = (timeValue.find(joined, maxOf(tIdx, 0)) ?: return null)
+        val min = (t.groupValues[1].toIntOrNull() ?: 0) * 60 + (t.groupValues[2].toIntOrNull() ?: return null)
+        if (km <= 0.0 || min <= 0) return null
+        return RideOffer(price, 0.0, 0, km, min, null, "iFood")
+    }
+
+    /**
+     * Keeta Rider: "R$ 18,48", "5,4 km total" e o botão "Pegar(40s)". O card não mostra o tempo da rota:
+     * sem ele o semáforo julga só pelo R$/km. Se algum dia o tempo aparecer ("12 min"), ele é usado.
+     */
+    private fun parseKeeta(texts: List<String>): RideOffer? {
+        val joined = texts.joinToString("  ")
+        if (!joined.lowercase().contains("pegar")) return null
+        val price = money.findAll(joined).mapNotNull { toDouble(it.groupValues[1]) }
+            .firstOrNull { it in 2.0..2000.0 } ?: return null
+        val km = kmValue.find(joined)?.groupValues?.get(1)?.let { toDouble(it) }?.takeIf { it > 0.0 } ?: return null
+        val t = timeValue.find(joined)
+        val min = t?.let { (it.groupValues[1].toIntOrNull() ?: 0) * 60 + (it.groupValues[2].toIntOrNull() ?: 0) } ?: 0
+        return RideOffer(price, 0.0, 0, km, min, null, "Keeta", true, min > 0)
+    }
+
     /**
      * @param strict leitura por imagem (OCR): em vez de aceitar uma leitura incompleta/errada (ex.: só uma das
      * duas rotas), recupera os km pelo "R$/km" do próprio card ou espera a próxima leitura.
      */
     fun parse(rawTexts: List<String>, source: String, strict: Boolean = false): RideOffer? {
         val texts = rawTexts.map { normalize(it) }
+        if (source == "iFood") return parseIfood(texts)
+        if (source == "Keeta") return parseKeeta(texts)
         val joined = texts.joinToString("  ")
         val low = joined.lowercase()
         val hasCue = cues.any { low.contains(it) } || texts.any { it.trim().lowercase() in exactCues }
@@ -122,8 +164,14 @@ object OfferParser {
 
         val pickup: Pair<Int, Double>
         val trip: Pair<Int, Double>
+        var tripKnown = true
         when {
+            // inDrive: a rota até o destino (verde) fica no alto do mapa e a retirada (azul) embaixo, perto do ponto A.
+            // Na ordem de leitura (de cima para baixo) a viagem vem primeiro. Os totais (km e min) não dependem da ordem.
+            pairs.size >= 2 && source == "inDrive" -> { trip = pairs[0]; pickup = pairs[1] }
             pairs.size >= 2 -> { pickup = pairs[0]; trip = pairs[1] }
+            // inDrive mostra só a retirada (ex.: "7 min. 3,3 km" sobre a rota até o passageiro): viagem desconhecida.
+            pairs.size == 1 && source == "inDrive" -> { pickup = pairs[0]; trip = Pair(0, 0.0); tripKnown = false }
             pairs.size == 1 -> {
                 val p = pairs[0]
                 if (expectedKm != null && expectedKm > p.second * 1.05 + 0.15) {
@@ -148,12 +196,12 @@ object OfferParser {
         if (!strongCue && balanceWords.containsMatchIn(low)) return null
         // Sem botão "Aceitar" visível na árvore, só aceita se tiver preço e as duas rotas (retirada + viagem).
         if (!hasCue && pairs.size < 2) return null
-        if (trip.second <= 0.0 && trip.first <= 0) return null
+        if (tripKnown && trip.second <= 0.0 && trip.first <= 0) return null
 
         val r = texts.firstNotNullOfOrNull { t ->
-            rating.find(t)?.groupValues?.get(1)?.let { toDouble(it) }
+            (rating.find(t) ?: ratingInt.find(t))?.groupValues?.get(1)?.let { toDouble(it) }
         }?.takeIf { it in 3.0..5.0 }
 
-        return RideOffer(price, pickup.second, pickup.first, trip.second, trip.first, r, source)
+        return RideOffer(price, pickup.second, pickup.first, trip.second, trip.first, r, source, tripKnown)
     }
 }

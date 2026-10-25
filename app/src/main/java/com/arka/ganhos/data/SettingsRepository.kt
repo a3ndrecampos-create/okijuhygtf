@@ -26,7 +26,6 @@ class SettingsRepository(private val context: Context) {
     private val kOverlay = booleanPreferencesKey("overlay")
     private val kSeconds = intPreferencesKey("overlay_s")
     private val kPosition = intPreferencesKey("overlay_pos")
-    private val kDiag = booleanPreferencesKey("diagnostics")
     private val kMonitoring = booleanPreferencesKey("monitoring")
     private val kOnb = booleanPreferencesKey("onboarding")
     private val kConsent = booleanPreferencesKey("access_consent")
@@ -51,7 +50,6 @@ class SettingsRepository(private val context: Context) {
             overlayEnabled = p[kOverlay] ?: d.overlayEnabled,
             overlaySeconds = p[kSeconds] ?: d.overlaySeconds,
             overlayPosition = p[kPosition] ?: d.overlayPosition,
-            diagnostics = p[kDiag] ?: d.diagnostics,
             monitoring = p[kMonitoring] ?: d.monitoring,
             onboardingDone = p[kOnb] ?: d.onboardingDone,
             accessConsent = p[kConsent] ?: d.accessConsent,
@@ -89,7 +87,6 @@ class SettingsRepository(private val context: Context) {
             p[kOverlay] = n.overlayEnabled
             p[kSeconds] = n.overlaySeconds
             p[kPosition] = n.overlayPosition
-            p[kDiag] = n.diagnostics
             p[kMonitoring] = n.monitoring
             p[kOnb] = n.onboardingDone
             p[kConsent] = n.accessConsent

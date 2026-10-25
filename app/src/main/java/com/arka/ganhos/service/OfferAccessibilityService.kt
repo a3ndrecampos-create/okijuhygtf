@@ -17,7 +17,6 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.arka.ganhos.core.Calculator
 import com.arka.ganhos.core.OfferParser
 import com.arka.ganhos.data.AppSettings
-import com.arka.ganhos.data.DiagnosticsStore
 import com.arka.ganhos.data.RideOffer
 import com.arka.ganhos.data.HistoryEntry
 import com.arka.ganhos.rotaApp
@@ -76,12 +75,6 @@ class OfferAccessibilityService : AccessibilityService() {
             val texts = ArrayList<String>()
             for (root in found.first) collect(root, texts)
             offer = OfferParser.parse(texts, found.second)
-            if (s.diagnostics) {
-                DiagnosticsStore.publish(found.first[0].packageName?.toString().orEmpty(), texts, offer)
-            }
-        } else if (s.diagnostics) {
-            val pkgs = windows.mapNotNull { it.root?.packageName?.toString() }.distinct()
-            DiagnosticsStore.publish("(nenhum app de corrida lido)", pkgs.map { "janela: $it" }, null)
         }
         if (offer == null) {
             if (!ocrShown && ++misses >= 4 && SystemClock.elapsedRealtime() - lastSeenAt > GONE_MS) {
@@ -132,7 +125,7 @@ class OfferAccessibilityService : AccessibilityService() {
         lastSignature = sig
 
         val a = Calculator.analyze(offer, s)
-        rotaApp.history.add(
+        if (offer.tripKnown) rotaApp.history.add(
             HistoryEntry(System.currentTimeMillis(), offer.price, offer.totalKm, offer.totalMin,
                 a.perKm, a.perHour, a.profit, a.verdict, offer.source, offer.rating)
         )
@@ -267,7 +260,6 @@ class OfferAccessibilityService : AccessibilityService() {
             .map { it.text }
             .filter { it.trim().lowercase() !in OWN_LINES }
         val offer = OfferParser.parse(lines, ocrSource, strict = true)
-        if (s.diagnostics) DiagnosticsStore.publish("$ocrSource (OCR)", lines, offer)
         if (offer != null) {
             ocrShown = true
             ocrMisses = 0
@@ -347,7 +339,9 @@ class OfferAccessibilityService : AccessibilityService() {
             "com.ubercab.driver" to "Uber",
             "com.app99.driver" to "99",
             "com.taxis99.driver" to "99",
-            "sinet.startup.inDriver" to "inDrive"
+            "sinet.startup.inDriver" to "inDrive",
+            "br.com.ifood.driver.app" to "iFood",
+            "com.sankuai.sailor.courier" to "Keeta"
         )
     }
 }

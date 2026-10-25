@@ -211,4 +211,61 @@ class OfferParserTest {
         val texts = listOf("Ganhos de hoje", "R$ 312,40", "R$ 10,32", "3 min • 1.0 km", "8 min • 2.0 km", "Aceitar")
         assertEquals(10.32, OfferParser.parse(texts, "Uber", strict = true)!!.price, 0.001)
     }
+
+    @Test
+    fun inDriveCardReadsPriceAndPickupOnly() {
+        val texts = listOf(
+            "Pedido de corrida", "7 min.", "3,3 km", "Guilherme", "5 (5)",
+            "Rua 6 número 375 portao verde estou de camisa vermelha !",
+            "Rua Francisco Gentil de Guzzi 46 (Parque Santa Felicia Jardim)", "R$12",
+            "Aceitar por R$12", "Ofereça a sua tarifa para a viagem", "R$13", "R$14", "R$16", "Fechar"
+        )
+        val o = OfferParser.parse(texts, "inDrive")!!
+        assertEquals(12.0, o.price, 0.001)
+        assertEquals(3.3, o.pickupKm, 0.001)
+        assertEquals(7, o.pickupMin)
+        assertEquals(5.0, o.rating!!, 0.001)
+        assertEquals(false, o.tripKnown)
+    }
+
+    @Test
+    fun inDriveCardWithBothRoutes() {
+        val texts = listOf(
+            "Pedido de corrida", "9 min.", "3,7 km", "8 min.", "3,6 km", "Matheus", "★5 (217)",
+            "Rua Barão do Rio Branco 965 (Parque Anhanguera)", "R$ 10",
+            "Aceitar por R$ 10", "Ofereça sua tarifa:", "R$ 12", "R$ 13", "R$ 15"
+        )
+        val o = OfferParser.parse(texts, "inDrive")!!
+        assertEquals(10.0, o.price, 0.001)
+        assertEquals(7.3, o.totalKm, 0.001)
+        assertEquals(17, o.totalMin)
+        assertEquals(true, o.tripKnown)
+        assertEquals(5.0, o.rating!!, 0.001)
+    }
+
+    @Test
+    fun ifoodDeliveryCard() {
+        val texts = listOf(
+            "Coleta 1 • Restaurante", "Viva! Marmitaria - Santa Lúcia", "Entrega 1", "Buritis",
+            "R$ 13,83", "Rota para Moto", "Distância total", "7,08 km", "Tempo aproximado de rota", "40 min",
+            "Possibilidade de devolução", "Sim", "Rejeitar", "Aceitar", "52"
+        )
+        val o = OfferParser.parse(texts, "iFood")!!
+        assertEquals(13.83, o.price, 0.001)
+        assertEquals(7.08, o.totalKm, 0.001)
+        assertEquals(40, o.totalMin)
+    }
+
+    @Test
+    fun keetaCardReadsPriceAndKmOnly() {
+        val texts = listOf(
+            "R$ 18,48", "rider", "5,4 km total",
+            "R. S. Domingos Donatão, 569 - Jardim Apura, São Paulo - SP, 04470-175",
+            "Rua Maria Aparecida de Jesus, 185, São Paulo", "Pegar(40s)"
+        )
+        val o = OfferParser.parse(texts, "Keeta")!!
+        assertEquals(18.48, o.price, 0.001)
+        assertEquals(5.4, o.totalKm, 0.001)
+        assertEquals(false, o.timeKnown)
+    }
 }

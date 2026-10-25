@@ -131,7 +131,7 @@ fun AccessDisclosureDialog(onAccept: () -> Unit, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "O Arka usa o serviço de Acessibilidade do Android para ler, na tela do Uber, da 99 e do inDrive, " +
+                    "O Arka usa o serviço de Acessibilidade do Android para ler, na tela do Uber, da 99, do inDrive, do iFood Entregador e do Keeta Rider, " +
                         "o valor, o tempo e a distância das ofertas de corrida. Também tira capturas da tela enquanto " +
                         "esses apps estão abertos, só para reconhecer a oferta quando o texto não puder ser lido.",
                     color = TextLo, style = MaterialTheme.typography.bodyMedium

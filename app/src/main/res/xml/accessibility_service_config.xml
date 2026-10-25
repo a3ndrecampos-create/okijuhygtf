@@ -7,4 +7,4 @@
     android:canRetrieveWindowContent="true"
     android:canTakeScreenshot="true"
     android:notificationTimeout="200"
-    android:packageNames="com.ubercab.driver,com.app99.driver,com.taxis99.driver,sinet.startup.inDriver" />
+    android:packageNames="com.ubercab.driver,com.app99.driver,com.taxis99.driver,sinet.startup.inDriver,br.com.ifood.driver.app,com.sankuai.sailor.courier" />

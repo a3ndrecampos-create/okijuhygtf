@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">Arka</string>
     <string name="app_full_name">Arka - Cálculo de Ganhos</string>
-    <string name="accessibility_description">O Arka lê na tela do Uber, 99 e inDrive apenas o valor, o tempo e a distância da corrida para calcular seu lucro e mostrar o semáforo. Nada é enviado para a internet e o app não executa ações por você.</string>
+    <string name="accessibility_description">O Arka lê na tela do Uber, 99, inDrive, iFood e Keeta Entregador apenas o valor, o tempo e a distância da corrida para calcular seu lucro e mostrar o semáforo. Nada é enviado para a internet e o app não executa ações por você.</string>
 </resources>

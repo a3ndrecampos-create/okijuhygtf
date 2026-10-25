@@ -7,18 +7,25 @@ object Calculator {
     /** As faixas usadas são as do app da oferta (offer.source); sem faixa própria vale o padrão. */
     fun analyze(offer: RideOffer, s: AppSettings): Analysis {
         val band = s.bandFor(offer.source)
+        if (!offer.tripKnown) {
+            // Sem os km da viagem não dá para calcular R$/km nem lucro: não inventa número, só avisa.
+            val reasons = mutableListOf("O ${offer.source} não mostra os km da viagem")
+            if (offer.pickupMin > s.maxPickupMin) reasons += "Passageiro longe: ${offer.pickupMin} min (máx. ${s.maxPickupMin})"
+            return Analysis(offer, 0.0, 0.0, 0.0, 0.0, 0.0, Verdict.YELLOW, reasons)
+        }
         val km = offer.totalKm.coerceAtLeast(0.1)
+        val timeOk = offer.timeKnown
         val hours = offer.totalMin.coerceAtLeast(1) / 60.0
         val cost = km * s.costPerKm
         val profit = offer.price - cost
         val perKm = offer.price / km
-        val perHour = offer.price / hours
-        val minFare = max(km * band.greenKm, hours * band.greenHour)
+        val perHour = if (timeOk) offer.price / hours else 0.0
+        val minFare = if (timeOk) max(km * band.greenKm, hours * band.greenHour) else km * band.greenKm
 
         val greenKmOk = perKm >= band.greenKm
-        val greenHourOk = perHour >= band.greenHour
+        val greenHourOk = !timeOk || perHour >= band.greenHour
         val redKm = perKm < band.yellowKm
-        val redHour = perHour < band.yellowHour
+        val redHour = timeOk && perHour < band.yellowHour
         val okPickup = offer.pickupMin <= s.maxPickupMin
         val rating = offer.rating
         val okRating = rating == null || rating >= s.minRating

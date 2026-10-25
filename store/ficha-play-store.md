@@ -10,7 +10,7 @@ Veja na hora se a corrida vale a pena: semáforo verde, amarelo ou vermelho.
 **Descrição completa:**
 Aceitar ou recusar? O Arka responde em 1 segundo.
 
-Quando uma oferta de corrida aparece no Uber, na 99 ou no inDrive, o Arka calcula o seu lucro real e mostra um semáforo por cima do app:
+Quando uma oferta de corrida aparece no Uber, na 99, no inDrive, no iFood Entregador ou no Keeta Rider, o Arka calcula o seu lucro real e mostra um semáforo por cima do app:
 🟢 Verde: boa corrida, aceite.
 🟡 Amarelo: avalie.
 🔴 Vermelho: não compensa.
@@ -18,7 +18,7 @@ Quando uma oferta de corrida aparece no Uber, na 99 ou no inDrive, o Arka calcul
 O QUE VOCÊ TEM
 • Lucro real por corrida, descontando combustível, manutenção e desgaste do carro
 • R$/km e R$/hora de cada oferta
-• Faixas do semáforo separadas por aplicativo (Uber, 99, inDrive), ajustáveis com controle deslizante
+• Faixas do semáforo separadas por aplicativo (Uber, 99, inDrive, iFood Entregador, Keeta Rider), ajustáveis com controle deslizante
 • Escolha de quais aplicativos monitorar
 • Histórico das ofertas analisadas, com compartilhamento e exportação
 • Calculadora para testar uma corrida antes de aceitar
@@ -34,7 +34,7 @@ O Arka usa o serviço de Acessibilidade do Android para ler o valor, o tempo e a
 TESTE GRÁTIS E ASSINATURA
 60 dias grátis. Depois, assinatura mensal pela Google Play, que você cancela quando quiser.
 
-Aviso: o Arka é independente e não tem vínculo com Uber, 99, inDrive ou outras empresas citadas.
+Aviso: o Arka é independente e não tem vínculo com Uber, 99, inDrive, iFood, Keeta ou outras empresas citadas.
 
 **Categoria:** Mapas e navegação (ou Finanças; escolha a que preferir)
 **Contato (e-mail público):** o seu
@@ -55,7 +55,7 @@ Aviso: o Arka é independente e não tem vínculo com Uber, 99, inDrive ou outra
 
 ## Declaração da API de Acessibilidade (Conteúdo do app)
 **Principal funcionalidade do app que usa a API:**
-Leitura do valor, do tempo e da distância das ofertas de corrida exibidas nos apps de corrida (Uber, 99, inDrive) para calcular o lucro do motorista e mostrar um semáforo (verde, amarelo, vermelho). O app não é uma ferramenta de acessibilidade e não declara isAccessibilityTool.
+Leitura do valor, do tempo e da distância das ofertas de corrida exibidas nos apps de corrida (Uber, 99, inDrive, iFood Entregador, Keeta Rider) para calcular o lucro do motorista e mostrar um semáforo (verde, amarelo, vermelho). O app não é uma ferramenta de acessibilidade e não declara isAccessibilityTool.
 
 **Por que a API é necessária:**
 Os apps de corrida não oferecem outra forma de o motorista ver o cálculo de lucro no momento da oferta. A leitura da tela é a única forma de obter valor, tempo e distância da oferta enquanto ela está visível.

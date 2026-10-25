@@ -26,7 +26,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.arka.ganhos.billing.AccessState
 import com.arka.ganhos.core.money
-import com.arka.ganhos.data.DiagnosticsStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,7 +40,7 @@ const val PRIVACY_URL = ""
 
 fun shareApp(ctx: android.content.Context) {
     val name = ctx.getString(R.string.app_name)
-    val text = "Conheça o $name: lê as ofertas da Uber, 99 e inDrive e mostra com um semáforo " +
+    val text = "Conheça o $name: lê as ofertas da Uber, 99, inDrive, iFood e Keeta e mostra com um semáforo " +
         "(verde, amarelo ou vermelho) se a corrida vale a pena." +
         if (PLAY_STORE_URL.isNotBlank()) "\n" + PLAY_STORE_URL else ""
     val send = Intent(Intent.ACTION_SEND).apply {
@@ -97,6 +96,8 @@ fun SettingsScreen(
                 SUPPORTED_APPS.forEach { app ->
                     val on = s.isEnabled(app)
                     Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AppBadge(app, 40.dp)
+                        Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(app, color = TextHi, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text(if (on) "Monitorando ofertas" else "Desligado", style = cap,
@@ -230,75 +231,13 @@ fun SettingsScreen(
             }
         }
 
-        item {
-            val last by DiagnosticsStore.last.collectAsState()
-            AppCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Modo diagnóstico", style = MaterialTheme.typography.titleMedium, color = TextHi)
-                        Text("Mostra o que o app consegue ler na tela das corridas. Use para ajustar o leitor.",
-                            style = cap, color = TextLo)
-                    }
-                    Switch(
-                        checked = s.diagnostics,
-                        onCheckedChange = { c -> onUpdate { it.copy(diagnostics = c) } },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Green, checkedThumbColor = OnGreen)
-                    )
-                }
-                if (s.diagnostics) {
-                    val c = last
-                    Spacer(gap)
-                    if (c == null) {
-                        Text("Abra o app de corrida e espere uma oferta aparecer.", style = cap, color = TextLo)
-                    } else {
-                        Text(c.pkg + " · " + SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(c.time)), style = cap, color = TextLo)
-                        Text(c.result, fontWeight = FontWeight.SemiBold,
-                            color = if (c.result.startsWith("Oferta não")) Amber else Green)
-                        Spacer(Modifier.height(8.dp))
-                        Text(c.texts.take(40).joinToString("\n"), style = cap, color = TextLo)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { clip.setText(AnnotatedString(c.pkg + "\n" + c.result + "\n\n" + c.texts.joinToString("\n"))) },
-                            shape = RoundedCornerShape(14.dp)
-                        ) { Text("Copiar leitura", color = TextHi) }
-                    }
-                }
-            }
-        }
-
-        item {
-            AppCard {
-                Text(
-                    "Ajude nosso app a crescer!", style = MaterialTheme.typography.titleLarge, color = TextHi,
-                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Gostou do aplicativo? Compartilhe com seus amigos e ajude mais pessoas a conhecerem e " +
-                        "aproveitarem essa experiência. Cada indicação faz a diferença!",
-                    style = MaterialTheme.typography.bodyMedium, color = TextLo,
-                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(14.dp))
-                Button(
-                    onClick = { shareApp(ctx) },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = OnGreen)
-                ) {
-                    Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text("Compartilhar aplicativo", fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
 
         item {
             AppCard {
                 Text("Privacidade", style = MaterialTheme.typography.titleMedium, color = TextHi)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "A leitura da tela só acontece no Uber, na 99 e no inDrive. Todos os cálculos ficam no seu aparelho e o Arka não envia suas corridas para nenhum servidor. Versão " + versionName + ".",
+                    "A leitura da tela só acontece no Uber, na 99, no inDrive, no iFood Entregador e no Keeta Rider. Todos os cálculos ficam no seu aparelho e o Arka não envia suas corridas para nenhum servidor. Versão " + versionName + ".",
                     style = MaterialTheme.typography.bodyMedium, color = TextLo
                 )
                 if (PRIVACY_URL.isNotBlank()) {
