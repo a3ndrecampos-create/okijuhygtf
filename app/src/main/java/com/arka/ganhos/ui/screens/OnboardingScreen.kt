@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Traffic
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +85,7 @@ private fun InfoPage(p: Page) {
 
 @Composable
 private fun PermissionPage(accessOn: Boolean, ctx: android.content.Context, onOpenAccessibility: () -> Unit) {
+    val restricted = remember { needsRestrictedSettingsHelp(ctx) }
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(Modifier.size(120.dp).clip(CircleShape).background(Green.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Accessibility, null, tint = Green, modifier = Modifier.size(56.dp))
@@ -92,7 +94,8 @@ private fun PermissionPage(accessOn: Boolean, ctx: android.content.Context, onOp
         Text("Ative a leitura de tela", style = MaterialTheme.typography.headlineMedium, color = TextHi, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
-            "1. Abra Acessibilidade e escolha Arka.\n2. Ligue a chave e confirme.\nSe estiver cinza (Android 13+), use o botão de configurações restritas.",
+            "1. Abra Acessibilidade e escolha Arka.\n2. Ligue a chave e confirme." +
+                if (restricted) "\nSe estiver cinza (Android 13+), use o botão de configurações restritas." else "",
             style = MaterialTheme.typography.bodyMedium, color = TextLo, textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(18.dp))
@@ -104,12 +107,14 @@ private fun PermissionPage(accessOn: Boolean, ctx: android.content.Context, onOp
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = OnAmber)
             ) { Text("Abrir Acessibilidade") }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { openAppInfo(ctx) },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("Liberar configurações restritas", color = TextHi) }
+            if (restricted) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { openAppInfo(ctx) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("Liberar configurações restritas", color = TextHi) }
+            }
         }
     }
 }

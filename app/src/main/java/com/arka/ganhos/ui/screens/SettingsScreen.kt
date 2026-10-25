@@ -62,6 +62,7 @@ fun SettingsScreen(
     val ctx = LocalContext.current
     val clip = LocalClipboardManager.current
     val versionName = remember { try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" } catch (e: Exception) { "" } }
+    val restricted = remember { needsRestrictedSettingsHelp(ctx) }
     val gap = Modifier.height(10.dp)
     val cap = MaterialTheme.typography.bodySmall
 
@@ -226,17 +227,19 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = OnGreen)
                 ) { Text("Abrir Acessibilidade") }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { openAppInfo(ctx) },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("Liberar configurações restritas", color = TextHi) }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Se a chave de Acessibilidade estiver cinza (Android 13+): toque em Informações do app, abra o menu ⋮ e escolha Permitir configurações restritas.",
-                    style = cap, color = TextLo
-                )
+                if (restricted) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { openAppInfo(ctx) },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("Liberar configurações restritas", color = TextHi) }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Se a chave de Acessibilidade estiver cinza (Android 13+): toque em Informações do app, abra o menu ⋮ e escolha Permitir configurações restritas.",
+                        style = cap, color = TextLo
+                    )
+                }
             }
         }
 
