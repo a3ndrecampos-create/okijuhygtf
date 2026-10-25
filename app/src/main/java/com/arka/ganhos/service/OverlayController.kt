@@ -7,6 +7,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -124,9 +125,15 @@ class OverlayController(private val ctx: Context) {
         if (bold) setTypeface(typeface, Typeface.BOLD)
     }
 
-    private fun pill(text: String, bg: Int, fg: Int) = tv(text, 12f, fg, true).apply {
+    /** Número grande: usa o maior tamanho que cabe em uma linha, entre [minSp] e [maxSp]. */
+    private fun fitTv(text: String, maxSp: Float, minSp: Float, color: Int) = tv(text, maxSp, color, true).apply {
+        maxLines = 1
+        setAutoSizeTextTypeUniformWithConfiguration(minSp.toInt(), maxSp.toInt(), 1, TypedValue.COMPLEX_UNIT_SP)
+    }
+
+    private fun pill(text: String, bg: Int, fg: Int) = tv(text, 15f, fg, true).apply {
         letterSpacing = 0.12f
-        setPadding(dp(12), dp(5), dp(12), dp(5))
+        setPadding(dp(14), dp(6), dp(14), dp(6))
         background = GradientDrawable().apply { setColor(bg); cornerRadius = dp(20).toFloat() }
     }
 
@@ -155,29 +162,31 @@ class OverlayController(private val ctx: Context) {
         val header = LinearLayout(ctx).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(pill(title(a.verdict), c, dark))
         header.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
-        header.addView(tv(money(a.offer.price), 26f, white, true))
+        header.addView(tv(money(a.offer.price), 34f, white, true))
         root.addView(header)
 
         // Linha 2: três indicadores em "pastilhas"
         val row = LinearLayout(ctx)
-        fun tile(label: String, value: String, valueColor: Int, last: Boolean) {
+        fun tile(label: String, value: String, valueColor: Int, last: Boolean, weight: Float = 1f) {
             val col = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(8), dp(12), dp(8))
+                setPadding(dp(10), dp(8), dp(10), dp(10))
                 background = GradientDrawable().apply {
                     setColor(0x1AFFFFFF); cornerRadius = dp(14).toFloat()
                 }
             }
-            col.addView(tv(label, 10f, gray, true).apply { letterSpacing = 0.1f })
-            col.addView(tv(value, 18f, valueColor, true))
-            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            if (!last) lp.marginEnd = dp(8)
+            col.addView(tv(label, 12f, gray, true).apply { letterSpacing = 0.06f })
+            col.addView(fitTv(value, 34f, 16f, valueColor), LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+            if (!last) lp.marginEnd = dp(6)
             row.addView(col, lp)
         }
         if (a.offer.tripKnown) {
             tile("R$/KM", num(a.perKm), white, false)
             tile("R$/HORA", if (a.offer.timeKnown) num(a.perHour, 0) else "—", white, false)
-            tile("LUCRO", money(a.profit), profitColor, true)
+            tile("LUCRO", money(a.profit), profitColor, true, weight = 1.45f)
         } else {
             // inDrive: só a retirada é conhecida
             tile("RETIRADA", num(a.offer.pickupKm, 1) + " km", white, false)
@@ -192,7 +201,7 @@ class OverlayController(private val ctx: Context) {
         root.addView(tv(
             if (a.offer.tripKnown) a.reasons.first() + "  ·  " + num(a.offer.totalKm, 1) + " km" + (if (a.offer.timeKnown) " · " + a.offer.totalMin + " min" else "")
             else a.reasons.joinToString("  ·  "),
-            12f, gray
+            15f, gray
         ), LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(10) })
