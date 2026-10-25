@@ -61,6 +61,7 @@ fun AppRoot() {
     val billing = app.billing
     val access by billing.state.collectAsState()
     var showDisclosure by remember { mutableStateOf(false) }
+    var sharePromptDone by rememberSaveable { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         accessOn = isAccessibilityEnabled(ctx)
         billing.refresh()
@@ -103,6 +104,14 @@ fun AppRoot() {
     if (!access.hasAccess) {
         PaywallScreen(access, onSubscribe = subscribe, onRestore = { billing.refresh() })
         return
+    }
+
+    // Convite de compartilhar: aparece ao abrir o app, a menos que o usuário tenha pedido para não ver mais.
+    if (!s.shareHidden && !sharePromptDone && !showDisclosure) {
+        SharePromptDialog(
+            onDismiss = { sharePromptDone = true },
+            onNeverAgain = { sharePromptDone = true; update { it.copy(shareHidden = true) } }
+        )
     }
 
     val tabs = listOf(

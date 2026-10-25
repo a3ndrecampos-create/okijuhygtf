@@ -43,40 +43,21 @@ fun openManageSubscription(ctx: Context) {
     }
 }
 
-/** Cartão com a situação do teste grátis ou da assinatura (tela inicial e Ajustes). */
+/** Cartão de assinatura: só aparece para quem já assina (para gerenciar). Durante o teste grátis não aparece nada. */
 @Composable
 fun SubscriptionCard(access: AccessState, onSubscribe: () -> Unit) {
+    if (!access.subscribed) return
     val ctx = LocalContext.current
     AppCard {
-        if (access.subscribed) {
-            Text("Assinatura ativa", style = MaterialTheme.typography.titleMedium, color = Green)
-            Spacer(Modifier.height(4.dp))
-            Text("Obrigado por apoiar o Arka. Você pode cancelar ou trocar a forma de pagamento na Play Store.",
-                style = MaterialTheme.typography.bodySmall, color = TextLo)
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = { openManageSubscription(ctx) },
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("Gerenciar assinatura", color = TextHi) }
-        } else {
-            val days = access.trialDaysLeft
-            Text(
-                if (days == 1) "Teste grátis: resta 1 dia" else "Teste grátis: restam $days dias",
-                style = MaterialTheme.typography.titleMedium, color = if (days <= 7) Amber else Green
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Depois do teste, o Arka continua com a assinatura mensal" +
-                    (access.price?.let { " de $it" } ?: "") + ". Sem anúncios.",
-                style = MaterialTheme.typography.bodySmall, color = TextLo
-            )
-            Spacer(Modifier.height(10.dp))
-            Button(
-                onClick = onSubscribe,
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = OnGreen)
-            ) { Text("Assinar agora", fontWeight = FontWeight.Bold) }
-        }
+        Text("Assinatura ativa", style = MaterialTheme.typography.titleMedium, color = Green)
+        Spacer(Modifier.height(4.dp))
+        Text("Obrigado por apoiar o Arka. Você pode cancelar ou trocar a forma de pagamento na Play Store.",
+            style = MaterialTheme.typography.bodySmall, color = TextLo)
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = { openManageSubscription(ctx) },
+            shape = RoundedCornerShape(14.dp)
+        ) { Text("Gerenciar assinatura", color = TextHi) }
     }
 }
 

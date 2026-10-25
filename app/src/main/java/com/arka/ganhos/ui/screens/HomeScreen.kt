@@ -54,7 +54,7 @@ fun HomeScreen(
             }
         }
         item { Hero(accessOn, s.monitoring, onMonitoring, onEnable) }
-        item { SubscriptionCard(access, onSubscribe) }
+        if (access.subscribed) item { SubscriptionCard(access, onSubscribe) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("Analisadas hoje", today.size.toString(), TextHi, Modifier.weight(1f))

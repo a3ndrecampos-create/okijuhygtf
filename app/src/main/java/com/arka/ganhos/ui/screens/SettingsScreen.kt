@@ -39,7 +39,7 @@ const val PLAY_STORE_URL = ""
 /** Endereço da política de privacidade (publique docs/privacidade.html e cole o link aqui). Vazio = botão escondido. */
 const val PRIVACY_URL = ""
 
-private fun shareApp(ctx: android.content.Context) {
+fun shareApp(ctx: android.content.Context) {
     val name = ctx.getString(R.string.app_name)
     val text = "Conheça o $name: lê as ofertas da Uber, 99 e inDrive e mostra com um semáforo " +
         "(verde, amarelo ou vermelho) se a corrida vale a pena." +
@@ -69,7 +69,7 @@ fun SettingsScreen(
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = TextHi) }
 
-        item { SubscriptionCard(access, onSubscribe) }
+        if (access.subscribed) item { SubscriptionCard(access, onSubscribe) }
 
         item {
             AppCard {

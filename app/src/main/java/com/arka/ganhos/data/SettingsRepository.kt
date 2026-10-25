@@ -30,6 +30,7 @@ class SettingsRepository(private val context: Context) {
     private val kMonitoring = booleanPreferencesKey("monitoring")
     private val kOnb = booleanPreferencesKey("onboarding")
     private val kConsent = booleanPreferencesKey("access_consent")
+    private val kShareHidden = booleanPreferencesKey("share_hidden")
 
     val flow: Flow<AppSettings> = context.store.data.map { read(it) }
 
@@ -54,6 +55,7 @@ class SettingsRepository(private val context: Context) {
             monitoring = p[kMonitoring] ?: d.monitoring,
             onboardingDone = p[kOnb] ?: d.onboardingDone,
             accessConsent = p[kConsent] ?: d.accessConsent,
+            shareHidden = p[kShareHidden] ?: d.shareHidden,
             disabledApps = p[kDisabled] ?: d.disabledApps,
             bands = SUPPORTED_APPS.mapNotNull { app -> p[kBand(app)]?.let { parseBand(it) }?.let { app to it } }.toMap()
         )
@@ -91,6 +93,7 @@ class SettingsRepository(private val context: Context) {
             p[kMonitoring] = n.monitoring
             p[kOnb] = n.onboardingDone
             p[kConsent] = n.accessConsent
+            p[kShareHidden] = n.shareHidden
         }
     }
 }
