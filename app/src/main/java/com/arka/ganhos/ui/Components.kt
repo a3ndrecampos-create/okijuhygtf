@@ -74,7 +74,7 @@ fun VerdictPill(v: Verdict) {
 @Composable
 fun TrafficLight(active: Verdict?) {
     Column(
-        Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xCC0A0F1C)).padding(8.dp),
+        Modifier.clip(RoundedCornerShape(16.dp)).background(TrafficBg).padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         listOf(Verdict.RED, Verdict.YELLOW, Verdict.GREEN).forEach { v ->

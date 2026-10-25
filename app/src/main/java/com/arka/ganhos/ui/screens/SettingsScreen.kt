@@ -72,6 +72,15 @@ fun SettingsScreen(
 
         item {
             AppCard {
+                Text("Aparência", style = MaterialTheme.typography.titleMedium, color = TextHi)
+                Text("Automático segue o tema do seu celular.", style = cap, color = TextLo)
+                Spacer(Modifier.height(10.dp))
+                Segmented(listOf("Automático", "Claro", "Escuro"), s.themeMode) { i -> onUpdate { it.copy(themeMode = i) } }
+            }
+        }
+
+        item {
+            AppCard {
                 Text("Custos do veículo", style = MaterialTheme.typography.titleMedium, color = TextHi)
                 Text("Usados para calcular seu lucro real em cada corrida.", style = cap, color = TextLo)
                 Spacer(gap)

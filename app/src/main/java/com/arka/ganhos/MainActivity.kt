@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -38,7 +39,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { RotaTheme { AppRoot() } }
+        setContent {
+            // Começa com o tema salvo (leitura instantânea) e depois acompanha o DataStore.
+            val mode by produceState(rotaApp.settings.cachedThemeMode()) {
+                rotaApp.settings.flow.collect { value = it.themeMode }
+            }
+            val dark = isDarkTheme(mode)
+            // Ícones da barra de status e de navegação: claros no tema escuro, escuros no tema claro.
+            DisposableEffect(dark) {
+                val bars = SystemBarStyle.auto(
+                    android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT
+                ) { dark }
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+                onDispose { }
+            }
+            RotaTheme(mode) { AppRoot() }
+        }
     }
 }
 

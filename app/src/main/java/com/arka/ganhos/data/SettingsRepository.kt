@@ -30,6 +30,12 @@ class SettingsRepository(private val context: Context) {
     private val kOnb = booleanPreferencesKey("onboarding")
     private val kConsent = booleanPreferencesKey("access_consent")
     private val kShareHidden = booleanPreferencesKey("share_hidden")
+    private val kTheme = intPreferencesKey("theme_mode")
+
+    // Cópia do tema em SharedPreferences: dá para ler na hora de abrir o app, antes do DataStore responder,
+    // e assim a primeira tela já aparece clara ou escura como o usuário escolheu (sem piscar).
+    private val themeCache = context.getSharedPreferences("theme_cache", Context.MODE_PRIVATE)
+    fun cachedThemeMode(): Int = themeCache.getInt("mode", THEME_SYSTEM)
 
     val flow: Flow<AppSettings> = context.store.data.map { read(it) }
 
@@ -54,6 +60,7 @@ class SettingsRepository(private val context: Context) {
             onboardingDone = p[kOnb] ?: d.onboardingDone,
             accessConsent = p[kConsent] ?: d.accessConsent,
             shareHidden = p[kShareHidden] ?: d.shareHidden,
+            themeMode = p[kTheme] ?: d.themeMode,
             disabledApps = p[kDisabled] ?: d.disabledApps,
             bands = SUPPORTED_APPS.mapNotNull { app -> p[kBand(app)]?.let { parseBand(it) }?.let { app to it } }.toMap()
         )
@@ -91,6 +98,8 @@ class SettingsRepository(private val context: Context) {
             p[kOnb] = n.onboardingDone
             p[kConsent] = n.accessConsent
             p[kShareHidden] = n.shareHidden
+            p[kTheme] = n.themeMode
+            themeCache.edit().putInt("mode", n.themeMode).apply()
         }
     }
 }

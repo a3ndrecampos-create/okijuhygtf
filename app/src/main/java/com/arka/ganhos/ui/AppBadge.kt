@@ -23,9 +23,7 @@ import com.arka.ganhos.data.SUPPORTED_APPS
  */
 @Composable
 fun AppBadge(app: String, size: Dp = 44.dp) {
-    val palette = listOf(
-        Color(0xFF60A5FA), Color(0xFFFBBF24), Color(0xFF2DD4BF), Color(0xFFF472B6), Color(0xFFA78BFA)
-    )
+    val palette = BadgeColors
     val i = SUPPORTED_APPS.indexOf(app)
     val tint = if (i >= 0) palette[i % palette.size] else TextLo
     val label = when (app) {

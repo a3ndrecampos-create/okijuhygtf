@@ -1,5 +1,9 @@
 package com.arka.ganhos.data
 
+const val THEME_SYSTEM = 0
+const val THEME_LIGHT = 1
+const val THEME_DARK = 2
+
 data class AppSettings(
     val fuelPrice: Double = 6.0,
     val kmPerLiter: Double = 12.0,
@@ -22,6 +26,8 @@ data class AppSettings(
     val accessConsent: Boolean = false,
     /** O usuário pediu para não ver mais o convite de compartilhar ao abrir o app. */
     val shareHidden: Boolean = false,
+    /** Aparência: THEME_SYSTEM (segue o celular), THEME_LIGHT ou THEME_DARK. */
+    val themeMode: Int = THEME_SYSTEM,
     /** Apps desligados pelo usuário (não são lidos). */
     val disabledApps: Set<String> = emptySet(),
     /** Faixas próprias de cada app; quem não está aqui usa o padrão. */

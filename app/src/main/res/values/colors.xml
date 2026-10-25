@@ -1,4 +1,6 @@
 <resources>
-    <color name="bg">#0A0F1C</color>
+    <!-- Fundo da janela no tema claro; o escuro fica em values-night/colors.xml. -->
+    <color name="bg">#F4F6FB</color>
+    <!-- O ícone do app é escuro nos dois temas. -->
     <color name="icon_bg">#0A0F1C</color>
 </resources>

@@ -83,8 +83,7 @@ fun HomeScreen(
 @Composable
 private fun Hero(accessOn: Boolean, monitoring: Boolean, onMonitoring: (Boolean) -> Unit, onEnable: () -> Unit) {
     val active = accessOn && monitoring
-    val brush = if (active) Brush.linearGradient(listOf(Color(0xFF0F6B4D), Color(0xFF123C73)))
-    else Brush.linearGradient(listOf(Color(0xFF3A2A12), Color(0xFF1A2236)))
+    val brush = if (active) HeroActive else HeroIdle
     val shape = RoundedCornerShape(24.dp)
     Box(Modifier.fillMaxWidth().clip(shape).background(brush).border(1.dp, Stroke, shape).padding(20.dp)) {
         Column {
@@ -106,7 +105,7 @@ private fun Hero(accessOn: Boolean, monitoring: Boolean, onMonitoring: (Boolean)
                             !monitoring -> "Ligue o botão para voltar a analisar as ofertas."
                             else -> "Abra seu app de corridas e fique online. O semáforo aparece sozinho."
                         },
-                        style = MaterialTheme.typography.bodyMedium, color = Color(0xFFCBD5E1)
+                        style = MaterialTheme.typography.bodyMedium, color = HeroBody
                     )
                 }
                 if (accessOn) {
@@ -122,7 +121,7 @@ private fun Hero(accessOn: Boolean, monitoring: Boolean, onMonitoring: (Boolean)
                     onClick = onEnable,
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = Color(0xFF1F1500))
+                    colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = OnAmber)
                 ) { Text("Ativar leitura de tela") }
             }
         }

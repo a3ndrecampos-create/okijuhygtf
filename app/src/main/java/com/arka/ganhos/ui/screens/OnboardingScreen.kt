@@ -102,7 +102,7 @@ private fun PermissionPage(accessOn: Boolean, ctx: android.content.Context, onOp
                 onClick = onOpenAccessibility,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = Color(0xFF1F1500))
+                colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = OnAmber)
             ) { Text("Abrir Acessibilidade") }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
