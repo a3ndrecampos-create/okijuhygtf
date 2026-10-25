@@ -1,5 +1,8 @@
 package com.arka.ganhos
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -39,6 +42,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 @Composable
 fun AppRoot() {
     val ctx = LocalContext.current
@@ -49,7 +58,14 @@ fun AppRoot() {
     var accessOn by remember { mutableStateOf(isAccessibilityEnabled(ctx)) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showSplash by rememberSaveable { mutableStateOf(true) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { accessOn = isAccessibilityEnabled(ctx) }
+    val billing = app.billing
+    val access by billing.state.collectAsState()
+    var showDisclosure by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        accessOn = isAccessibilityEnabled(ctx)
+        billing.refresh()
+    }
+    val subscribe: () -> Unit = { ctx.findActivity()?.let { billing.launchPurchase(it) } }
 
     if (showSplash) {
         SplashScreen { showSplash = false }
@@ -63,8 +79,29 @@ fun AppRoot() {
     }
     val update: ((AppSettings) -> AppSettings) -> Unit = { f -> scope.launch { app.settings.update(f) } }
 
+    // Antes de abrir a tela de Acessibilidade, o Android/Play exigem um aviso claro com aceite do usuário.
+    val requestAccessibility: () -> Unit = {
+        if (s.accessConsent) openAccessibilitySettings(ctx) else showDisclosure = true
+    }
+    if (showDisclosure) {
+        AccessDisclosureDialog(
+            onAccept = {
+                showDisclosure = false
+                update { it.copy(accessConsent = true) }
+                openAccessibilitySettings(ctx)
+            },
+            onDismiss = { showDisclosure = false }
+        )
+    }
+
     if (!s.onboardingDone) {
-        OnboardingScreen(accessOn) { update { it.copy(onboardingDone = true) } }
+        OnboardingScreen(accessOn, onOpenAccessibility = requestAccessibility) { update { it.copy(onboardingDone = true) } }
+        return
+    }
+
+    // Teste de 60 dias acabou e não há assinatura ativa
+    if (!access.hasAccess) {
+        PaywallScreen(access, onSubscribe = subscribe, onRestore = { billing.refresh() })
         return
     }
 
@@ -95,12 +132,13 @@ fun AppRoot() {
     ) { pad ->
         Box(Modifier.padding(pad).statusBarsPadding()) {
             when (tab) {
-                0 -> HomeScreen(s, accessOn, history,
+                0 -> HomeScreen(s, accessOn, history, access,
                     onMonitoring = { c -> update { it.copy(monitoring = c) } },
-                    onEnable = { openAccessibilitySettings(ctx) })
+                    onEnable = requestAccessibility,
+                    onSubscribe = subscribe)
                 1 -> CalculatorScreen(s)
                 2 -> HistoryScreen(history, onClear = { app.history.clear() }, onDelete = { app.history.remove(it.timestamp) })
-                else -> SettingsScreen(s, accessOn, update)
+                else -> SettingsScreen(s, accessOn, access, update, onOpenAccessibility = requestAccessibility, onSubscribe = subscribe)
             }
         }
     }

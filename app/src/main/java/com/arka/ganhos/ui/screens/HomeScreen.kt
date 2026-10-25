@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.arka.ganhos.billing.AccessState
 import com.arka.ganhos.core.money
 import com.arka.ganhos.core.num
 import com.arka.ganhos.data.AppSettings
@@ -35,8 +36,10 @@ fun HomeScreen(
     s: AppSettings,
     accessOn: Boolean,
     history: List<HistoryEntry>,
+    access: AccessState,
     onMonitoring: (Boolean) -> Unit,
-    onEnable: () -> Unit
+    onEnable: () -> Unit,
+    onSubscribe: () -> Unit
 ) {
     val today = remember(history) { val t0 = startOfDay(); history.filter { it.timestamp >= t0 } }
     val greens = today.count { it.verdict == Verdict.GREEN }
@@ -51,6 +54,7 @@ fun HomeScreen(
             }
         }
         item { Hero(accessOn, s.monitoring, onMonitoring, onEnable) }
+        item { SubscriptionCard(access, onSubscribe) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("Analisadas hoje", today.size.toString(), TextHi, Modifier.weight(1f))

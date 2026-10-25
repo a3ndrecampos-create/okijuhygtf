@@ -48,7 +48,7 @@ class OfferAccessibilityService : AccessibilityService() {
     private val trailingScan = Runnable { scan() }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || !settings.monitoring) return
+        if (event == null || !settings.monitoring || !rotaApp.billing.hasAccess()) return
         val now = SystemClock.elapsedRealtime()
         // Com o cartão na tela a oferta já foi lida: varrer a árvore a cada 300 ms só pesa a thread principal
         // (e faz a barrinha/contagem do cartão engasgar). Nesse caso lê no máximo ~1x por segundo.
@@ -67,6 +67,7 @@ class OfferAccessibilityService : AccessibilityService() {
         val s = settings
         if (!s.monitoring) return
         overlay.expireIfStale()
+        if (!rotaApp.billing.hasAccess()) { overlay.hide(); return }
         lastScan = SystemClock.elapsedRealtime()
 
         var offer: RideOffer? = null
@@ -172,7 +173,7 @@ class OfferAccessibilityService : AccessibilityService() {
             if (ocrBusy && now - lastShotAt > 4000) ocrBusy = false
             // Qual app está na tela só é conferido 1x por segundo (conferir janelas é caro).
             if (now - lastTargetCheck > 1000 || cachedSrc == null) {
-                cachedSrc = if (settings.monitoring && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) targetOnScreen() else null
+                cachedSrc = if (settings.monitoring && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && rotaApp.billing.hasAccess()) targetOnScreen() else null
                 lastTargetCheck = now
             }
             val src = cachedSrc

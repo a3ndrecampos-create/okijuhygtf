@@ -3,10 +3,13 @@
 App Android (Kotlin + Jetpack Compose) que lê a oferta de corrida na tela do Uber, 99 e inDrive
 e mostra um semáforo (verde / amarelo / vermelho) com R$/km, R$/hora e lucro real.
 
+## Publicar na Play Store
+Veja **PUBLICAR.md** (chave de envio, .aab, assinatura mensal, declarações) e `store/ficha-play-store.md` (textos e imagens da ficha).
+
 ## Gerar o APK no GitHub
 1. Crie um repositório e envie todos os arquivos (inclusive a pasta `.github`).
-2. Aba **Actions** > **Build APK** > **Run workflow** (também roda a cada push). Os testes rodam antes do build.
-3. Baixe o artefato **Arka-APK** (`Arka-debug.apk` e `Arka-release.apk`).
+2. Aba **Actions** > **Build APK e AAB** > **Run workflow** (também roda a cada push). Os testes rodam antes do build.
+3. Baixe **Arka-APK** (`Arka-debug.apk` e `Arka-release.apk`) e **Arka-AAB** (`Arka-PLAYSTORE.aab`, só sai assinado depois de cadastrar a chave: veja PUBLICAR.md).
 4. Para publicar uma versão: crie uma tag `v1.1.0` e o APK vai para a aba **Releases**.
 
 ## Instalar e ativar
@@ -20,4 +23,5 @@ Com esse texto dá para ajustar `core/OfferParser.kt` (as expressões regulares)
 ## Pontos de ajuste
 - Nome: `res/values/strings.xml`. Pacote: `applicationId` em `app/build.gradle.kts`.
 - Apps lidos: `res/xml/accessibility_service_config.xml` e `OfferAccessibilityService.TARGETS`.
-- Assinatura: o release usa a chave debug. Para publicar na Play Store, configure sua própria chave.
+- Assinatura de publicação: chave de envio vinda dos segredos do GitHub (PUBLICAR.md). Sem ela o release sai com a chave debug e a Play recusa.
+- Teste grátis e assinatura: `billing/BillingManager.kt` (produto `arka_mensal`) e `core/Trial.kt` (60 dias).

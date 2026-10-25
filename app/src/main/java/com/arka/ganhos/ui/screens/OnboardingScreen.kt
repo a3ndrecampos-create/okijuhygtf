@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 private data class Page(val icon: ImageVector, val title: String, val body: String, val tint: Color)
 
 @Composable
-fun OnboardingScreen(accessOn: Boolean, onFinish: () -> Unit) {
+fun OnboardingScreen(accessOn: Boolean, onOpenAccessibility: () -> Unit, onFinish: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val pages = listOf(
@@ -38,14 +38,14 @@ fun OnboardingScreen(accessOn: Boolean, onFinish: () -> Unit) {
         Page(Icons.Rounded.Payments, "Seu custo, sua meta",
             "Informe combustível, consumo e manutenção. O app calcula o lucro real e compara com as metas que você definir.", Blue),
         Page(Icons.Rounded.Lock, "Privacidade primeiro",
-            "O app não tem acesso à internet. Ele lê só valor, tempo e distância da oferta e tudo fica no seu aparelho.", Amber)
+            "O Arka lê só valor, tempo e distância da oferta. Tudo é calculado no seu aparelho e suas corridas não são enviadas para ninguém.", Amber)
     )
     val total = pages.size + 1
     val pager = rememberPagerState(pageCount = { total })
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(24.dp)) {
         HorizontalPager(state = pager, modifier = Modifier.weight(1f)) { i ->
-            if (i < pages.size) InfoPage(pages[i]) else PermissionPage(accessOn, ctx)
+            if (i < pages.size) InfoPage(pages[i]) else PermissionPage(accessOn, ctx, onOpenAccessibility)
         }
         Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.Center) {
             repeat(total) { i ->
@@ -83,7 +83,7 @@ private fun InfoPage(p: Page) {
 }
 
 @Composable
-private fun PermissionPage(accessOn: Boolean, ctx: android.content.Context) {
+private fun PermissionPage(accessOn: Boolean, ctx: android.content.Context, onOpenAccessibility: () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(Modifier.size(120.dp).clip(CircleShape).background(Green.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Accessibility, null, tint = Green, modifier = Modifier.size(56.dp))
@@ -99,7 +99,7 @@ private fun PermissionPage(accessOn: Boolean, ctx: android.content.Context) {
         if (accessOn) Text("Acessibilidade ativada", color = Green, fontWeight = FontWeight.Bold)
         else {
             Button(
-                onClick = { openAccessibilitySettings(ctx) },
+                onClick = onOpenAccessibility,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = Color(0xFF1F1500))

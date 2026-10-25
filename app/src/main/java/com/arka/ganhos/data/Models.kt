@@ -19,6 +19,8 @@ data class AppSettings(
     val diagnostics: Boolean = false,
     val monitoring: Boolean = true,
     val onboardingDone: Boolean = false,
+    /** O usuário aceitou o aviso de Acessibilidade (exigido pela Play Store antes de pedir a permissão). */
+    val accessConsent: Boolean = false,
     /** Apps desligados pelo usuário (não são lidos). */
     val disabledApps: Set<String> = emptySet(),
     /** Faixas próprias de cada app; quem não está aqui usa o padrão. */

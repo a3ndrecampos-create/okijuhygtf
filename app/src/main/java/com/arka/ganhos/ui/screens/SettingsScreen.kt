@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import com.arka.ganhos.billing.AccessState
 import com.arka.ganhos.core.money
 import com.arka.ganhos.data.DiagnosticsStore
 import java.text.SimpleDateFormat
@@ -34,6 +35,9 @@ import com.arka.ganhos.ui.*
 
 /** Link da Play Store. Deixe vazio até o app ser publicado: enquanto estiver vazio, o texto vai sem link. */
 const val PLAY_STORE_URL = ""
+
+/** Endereço da política de privacidade (publique docs/privacidade.html e cole o link aqui). Vazio = botão escondido. */
+const val PRIVACY_URL = ""
 
 private fun shareApp(ctx: android.content.Context) {
     val name = ctx.getString(R.string.app_name)
@@ -48,14 +52,24 @@ private fun shareApp(ctx: android.content.Context) {
 }
 
 @Composable
-fun SettingsScreen(s: AppSettings, accessOn: Boolean, onUpdate: ((AppSettings) -> AppSettings) -> Unit) {
+fun SettingsScreen(
+    s: AppSettings,
+    accessOn: Boolean,
+    access: AccessState,
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    onOpenAccessibility: () -> Unit,
+    onSubscribe: () -> Unit
+) {
     val ctx = LocalContext.current
     val clip = LocalClipboardManager.current
+    val versionName = remember { try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" } catch (e: Exception) { "" } }
     val gap = Modifier.height(10.dp)
     val cap = MaterialTheme.typography.bodySmall
 
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = TextHi) }
+
+        item { SubscriptionCard(access, onSubscribe) }
 
         item {
             AppCard {
@@ -197,7 +211,7 @@ fun SettingsScreen(s: AppSettings, accessOn: Boolean, onUpdate: ((AppSettings) -
                 )
                 Spacer(gap)
                 Button(
-                    onClick = { openAccessibilitySettings(ctx) },
+                    onClick = onOpenAccessibility,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = OnGreen)
@@ -284,9 +298,18 @@ fun SettingsScreen(s: AppSettings, accessOn: Boolean, onUpdate: ((AppSettings) -
                 Text("Privacidade", style = MaterialTheme.typography.titleMedium, color = TextHi)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "O Arka não tem permissão de internet. A leitura da tela só acontece no Uber, 99 e inDrive, e todos os cálculos ficam no seu aparelho. Versão 1.1.0.",
+                    "A leitura da tela só acontece no Uber, na 99 e no inDrive. Todos os cálculos ficam no seu aparelho e o Arka não envia suas corridas para nenhum servidor. Versão " + versionName + ".",
                     style = MaterialTheme.typography.bodyMedium, color = TextLo
                 )
+                if (PRIVACY_URL.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            try { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("Política de privacidade", color = TextHi) }
+                }
             }
         }
     }

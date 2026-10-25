@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK e AAB
 
 on:
   push:
@@ -13,6 +13,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ARKA_KEYSTORE_B64: ${{ secrets.ARKA_KEYSTORE_BASE64 }}
+      ARKA_KEYSTORE_PASSWORD: ${{ secrets.ARKA_KEYSTORE_PASSWORD }}
+      ARKA_KEY_ALIAS: ${{ secrets.ARKA_KEY_ALIAS }}
+      ARKA_KEY_PASSWORD: ${{ secrets.ARKA_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +28,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.9
+          gradle-version: 8.11.1
 
       - name: Unit tests
         run: gradle testDebugUnitTest --stacktrace
@@ -35,19 +40,44 @@ jobs:
           name: test-report
           path: app/build/reports/tests
 
-      - name: Build debug and release APK
-        run: gradle assembleDebug assembleRelease --stacktrace
+      - name: Chave de envio (para o .aab da Play Store)
+        id: key
+        run: |
+          if [ -n "$ARKA_KEYSTORE_B64" ] && [ -n "$ARKA_KEYSTORE_PASSWORD" ] && [ -n "$ARKA_KEY_ALIAS" ] && [ -n "$ARKA_KEY_PASSWORD" ]; then
+            echo "$ARKA_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/arka-upload.jks"
+            echo "ARKA_KEYSTORE_PATH=$RUNNER_TEMP/arka-upload.jks" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Segredos da chave não encontrados. O .aab abaixo NÃO serve para a Play Store. Rode o workflow 'Gerar Keystore' e cadastre os 4 segredos (veja PUBLICAR.md)."
+          fi
 
-      - name: Collect APKs
+      - name: Build APK debug, APK release e AAB release
+        run: >
+          gradle assembleDebug assembleRelease bundleRelease --stacktrace
+          -PversionCode=${{ github.run_number }}
+          -PversionName=1.0.${{ github.run_number }}
+
+      - name: Collect files
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/Arka-debug.apk
           cp app/build/outputs/apk/release/app-release.apk dist/Arka-release.apk
+          if [ "${{ steps.key.outputs.signed }}" = "true" ]; then
+            cp app/build/outputs/bundle/release/app-release.aab dist/Arka-PLAYSTORE.aab
+          else
+            cp app/build/outputs/bundle/release/app-release.aab dist/Arka-SEM-CHAVE-nao-enviar.aab
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: Arka-APK
           path: dist/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Arka-AAB
+          path: dist/*.aab
 
       - name: Publish GitHub Release (tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
