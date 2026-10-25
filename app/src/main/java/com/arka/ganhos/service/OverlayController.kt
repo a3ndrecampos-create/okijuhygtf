@@ -18,6 +18,16 @@ import com.arka.ganhos.core.num
 import com.arka.ganhos.data.Analysis
 import com.arka.ganhos.data.Verdict
 
+/** Tamanhos de letra do cartão (sp). Para deixar maior ou menor, mexa só aqui. */
+private object CardText {
+    const val PRICE = 28f        // valor da corrida (topo)
+    const val VALUE_MAX = 26f    // números das pastilhas: começam neste tamanho e encolhem se não couberem
+    const val VALUE_MIN = 14f
+    const val LABEL = 11f        // R$/KM, R$/HORA, LUCRO
+    const val PILL = 13f         // ACEITE / AVALIE / RECUSE
+    const val REASON = 13f       // linha do motivo e distância
+}
+
 /** Cartão flutuante com o semáforo. Usa TYPE_ACCESSIBILITY_OVERLAY: não precisa de permissão extra. */
 class OverlayController(private val ctx: Context) {
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -131,9 +141,9 @@ class OverlayController(private val ctx: Context) {
         setAutoSizeTextTypeUniformWithConfiguration(minSp.toInt(), maxSp.toInt(), 1, TypedValue.COMPLEX_UNIT_SP)
     }
 
-    private fun pill(text: String, bg: Int, fg: Int) = tv(text, 15f, fg, true).apply {
+    private fun pill(text: String, bg: Int, fg: Int) = tv(text, CardText.PILL, fg, true).apply {
         letterSpacing = 0.12f
-        setPadding(dp(14), dp(6), dp(14), dp(6))
+        setPadding(dp(12), dp(5), dp(12), dp(5))
         background = GradientDrawable().apply { setColor(bg); cornerRadius = dp(20).toFloat() }
     }
 
@@ -162,7 +172,7 @@ class OverlayController(private val ctx: Context) {
         val header = LinearLayout(ctx).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(pill(title(a.verdict), c, dark))
         header.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
-        header.addView(tv(money(a.offer.price), 34f, white, true))
+        header.addView(tv(money(a.offer.price), CardText.PRICE, white, true))
         root.addView(header)
 
         // Linha 2: três indicadores em "pastilhas"
@@ -170,13 +180,13 @@ class OverlayController(private val ctx: Context) {
         fun tile(label: String, value: String, valueColor: Int, last: Boolean, weight: Float = 1f) {
             val col = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(10), dp(8), dp(10), dp(10))
+                setPadding(dp(10), dp(7), dp(10), dp(8))
                 background = GradientDrawable().apply {
                     setColor(0x1AFFFFFF); cornerRadius = dp(14).toFloat()
                 }
             }
-            col.addView(tv(label, 12f, gray, true).apply { letterSpacing = 0.06f })
-            col.addView(fitTv(value, 34f, 16f, valueColor), LinearLayout.LayoutParams(
+            col.addView(tv(label, CardText.LABEL, gray, true).apply { letterSpacing = 0.06f })
+            col.addView(fitTv(value, CardText.VALUE_MAX, CardText.VALUE_MIN, valueColor), LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ))
             val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
@@ -186,7 +196,7 @@ class OverlayController(private val ctx: Context) {
         if (a.offer.tripKnown) {
             tile("R$/KM", num(a.perKm), white, false)
             tile("R$/HORA", if (a.offer.timeKnown) num(a.perHour, 0) else "—", white, false)
-            tile("LUCRO", money(a.profit), profitColor, true, weight = 1.45f)
+            tile("LUCRO", money(a.profit), profitColor, true, weight = 1.3f)
         } else {
             // inDrive: só a retirada é conhecida
             tile("RETIRADA", num(a.offer.pickupKm, 1) + " km", white, false)
@@ -201,7 +211,7 @@ class OverlayController(private val ctx: Context) {
         root.addView(tv(
             if (a.offer.tripKnown) a.reasons.first() + "  ·  " + num(a.offer.totalKm, 1) + " km" + (if (a.offer.timeKnown) " · " + a.offer.totalMin + " min" else "")
             else a.reasons.joinToString("  ·  "),
-            15f, gray
+            CardText.REASON, gray
         ), LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(10) })
