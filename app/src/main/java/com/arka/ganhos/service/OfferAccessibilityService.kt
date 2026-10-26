@@ -36,6 +36,8 @@ class OfferAccessibilityService : AccessibilityService() {
     private var lastSeenAt = 0L      // última vez que a oferta atual foi lida com sucesso
     private var pendingSig = ""      // oferta diferente vista por OCR, aguardando confirmação
     private var pendingCount = 0
+    private var shownSig = ""          // última oferta que virou cartão
+    private var shownAt = 0L           // quando ela virou cartão
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -112,6 +114,10 @@ class OfferAccessibilityService : AccessibilityService() {
         // Mesma oferta ainda na tela: não mostra de novo, não regrava no histórico, não reinicia a contagem.
         if (sig == lastSignature) { pendingSig = ""; return }
 
+        // Falha de leitura intermitente zera lastSignature mesmo com a oferta ainda na tela: sem esta trava o mesmo
+        // cartão sumia e voltava (e duplicava no histórico). A mesma oferta não reaparece dentro de REPEAT_BLOCK_MS.
+        if (sig == shownSig && now - shownAt < REPEAT_BLOCK_MS) { lastSignature = sig; pendingSig = ""; return }
+
         // A leitura por imagem (OCR) é ruidosa e o mesmo cartão pode sair com números diferentes de uma
         // leitura para outra. Com uma oferta ainda ativa (mesmo que o semáforo já tenha sumido pelo tempo),
         // só troca quando a leitura nova se repete.
@@ -123,6 +129,8 @@ class OfferAccessibilityService : AccessibilityService() {
         pendingSig = ""
         pendingCount = 0
         lastSignature = sig
+        shownSig = sig
+        shownAt = now
 
         val a = Calculator.analyze(offer, s)
         if (offer.tripKnown) rotaApp.history.add(
@@ -156,7 +164,7 @@ class OfferAccessibilityService : AccessibilityService() {
             } catch (e: Exception) {
                 // nunca deixa o laço morrer: o cartão precisa sempre poder sumir
             }
-            if (ocrLoopOn) handler.postDelayed(this, 80)
+            if (ocrLoopOn) handler.postDelayed(this, 200)
         }
 
         private fun tick() {
@@ -302,16 +310,30 @@ class OfferAccessibilityService : AccessibilityService() {
         val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
         stack.addLast(Pair(root, 0))
         var visited = 0
-        while (stack.isNotEmpty() && visited < 6000) {
+        val deadline = SystemClock.elapsedRealtime() + TREE_BUDGET_MS
+        while (stack.isNotEmpty() && visited < 3000) {
+            // Cada getChild() é uma chamada de IPC: sem limite de tempo a thread principal engasga com mapa grande.
+            if (visited % 50 == 0 && SystemClock.elapsedRealtime() > deadline) break
             val (node, depth) = stack.removeLast()
             visited++
             node.text?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
             node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
-            if (depth >= 60) continue
+            if (depth >= 60) { recycleNode(node, root); continue }
             // empilha ao contrário para manter a ordem visual (retirada antes da viagem)
             for (i in node.childCount - 1 downTo 0) {
                 node.getChild(i)?.let { stack.addLast(Pair(it, depth + 1)) }
             }
+            recycleNode(node, root)
+        }
+        // nós que sobraram na pilha (corte por tempo/limite) também são devolvidos
+        while (stack.isNotEmpty()) recycleNode(stack.removeLast().first, root)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun recycleNode(n: AccessibilityNodeInfo, root: AccessibilityNodeInfo) {
+        // Android 12 e anterior: nós não reciclados vazam e deixam o aparelho lento com o tempo.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && n !== root) {
+            try { n.recycle() } catch (_: Exception) {}
         }
     }
 
@@ -330,6 +352,12 @@ class OfferAccessibilityService : AccessibilityService() {
     companion object {
         /** Tempo sem ler a oferta para considerar que ela saiu da tela (e não foi só uma falha de leitura). */
         private const val GONE_MS = 2500L
+
+        /** A mesma oferta (mesmo valor/km/min) não vira cartão de novo dentro deste prazo. */
+        private const val REPEAT_BLOCK_MS = 45_000L
+
+        /** Tempo máximo de uma varredura da árvore de acessibilidade. */
+        private const val TREE_BUDGET_MS = 120L
 
         /** Linhas do cartão do próprio Arka, caso apareçam na captura. */
         private val OWN_LINES = setOf("r\$/km", "r\$/hora", "lucro", "aceite", "avalie", "recuse")

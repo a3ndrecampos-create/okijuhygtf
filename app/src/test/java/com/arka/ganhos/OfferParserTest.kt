@@ -268,4 +268,18 @@ class OfferParserTest {
         assertEquals(5.4, o.totalKm, 0.001)
         assertEquals(false, o.timeKnown)
     }
+
+    @Test
+    fun balanceNextToLooseViagemLabelIsNotAnOffer() {
+        // aba/rótulo "Viagem" solto + saldo + rotas do histórico, sem botão Aceitar
+        val texts = listOf("Viagem", "Saldo total", "R$ 845,20", "12 min (5 km)", "20 min (9 km)")
+        assertNull(OfferParser.parse(texts, "99"))
+    }
+
+    @Test
+    fun priceFarFromRoutesAndImplausiblePerKmIsNotAnOffer() {
+        val filler = List(14) { "Mapa $it" }
+        val texts = listOf("R$ 845,20") + filler + listOf("3 min • 1.0 km", "8 min • 2.0 km", "Aceitar")
+        assertNull(OfferParser.parse(texts, "Uber"))
+    }
 }

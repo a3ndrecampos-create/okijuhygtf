@@ -22,6 +22,8 @@ object OfferParser {
     private val ratingInt = Regex("""^\s*[^\d\s]{0,2}\s*([3-5])\s*\(\d+\)\s*$""")
     /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
     private val exactCues = setOf("viagem", "entrega", "aceitar", "accept")
+    /** Botão de aceitar da oferta: o texto do nó é só isso (ou \"Aceitar por R$...\"). */
+    private val acceptButtons = setOf("aceitar", "accept", "aceitar corrida", "aceitar viagem")
     private val cues = listOf("aceitar", "accept", "selecionar", "confirmar", "oferecer")
     /** Textos de telas/rodapés de dinheiro do motorista (saldo, ganhos...): o R$ vizinho NUNCA é o valor da corrida. */
     private val balanceWords = Regex(
@@ -148,14 +150,16 @@ object OfferParser {
                 var pool = items
                 if (firstPairNode != null) {
                     val near = pool.filter { kotlin.math.abs(it.node - firstPairNode) <= NEAR_NODES }
+                    // Nenhum R$ perto das rotas: só segue com o botão de aceitar na tela; senão é saldo/ganhos.
                     if (near.isNotEmpty()) pool = near
+                    else if (texts.none { it.trim().lowercase() in acceptButtons }) return null
                 }
                 // valores com rótulo de saldo/ganhos ao lado só valem se não houver outro; nesse caso o mais perto das rotas
                 if (pool.any { !it.soft }) pool = pool.filter { !it.soft }
                 else if (firstPairNode != null) pool = listOfNotNull(pool.minByOrNull { kotlin.math.abs(it.node - firstPairNode) })
                 if (pairKm != null && pairKm > 0.0) {
-                    val plausible = pool.filter { it.value / pairKm in 0.3..15.0 }
-                    if (plausible.isNotEmpty()) pool = plausible
+                    pool = pool.filter { it.value / pairKm in 0.3..15.0 }
+                    if (pool.isEmpty()) return null
                 }
                 pool.maxOfOrNull { it.value }
             }
@@ -192,7 +196,7 @@ object OfferParser {
             if (kotlin.math.abs(total - expectedKm) > maxOf(0.5, expectedKm * 0.12)) return null
         }
         // Tela de saldo/ganhos sem botão "Aceitar" de verdade: não é uma oferta.
-        val strongCue = low.contains("aceitar") || low.contains("accept") || texts.any { it.trim().lowercase() in exactCues }
+        val strongCue = texts.any { it.trim().lowercase() in acceptButtons || acceptPrice.containsMatchIn(it) }
         if (!strongCue && balanceWords.containsMatchIn(low)) return null
         // Sem botão "Aceitar" visível na árvore, só aceita se tiver preço e as duas rotas (retirada + viagem).
         if (!hasCue && pairs.size < 2) return null
