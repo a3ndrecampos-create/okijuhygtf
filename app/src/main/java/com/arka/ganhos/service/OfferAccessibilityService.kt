@@ -42,7 +42,13 @@ class OfferAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         overlay = OverlayController(this)
-        scope.launch { rotaApp.settings.flow.collect { settings = it } }
+        scope.launch {
+            rotaApp.settings.flow.collect {
+                settings = it
+                // Monitoramento ou cartão desligado nas configurações: tira o cartão que ficou na tela.
+                if (!it.monitoring || !it.overlayEnabled) overlay.hide()
+            }
+        }
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -51,11 +57,10 @@ class OfferAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || !settings.monitoring || !rotaApp.billing.hasAccess()) return
         val now = SystemClock.elapsedRealtime()
-        // Com o cartão na tela a oferta já foi lida: varrer a árvore a cada 300 ms só pesa a thread principal
-        // (e faz a barrinha/contagem do cartão engasgar). Nesse caso lê no máximo ~1x por segundo.
-        val minGap = if (overlay.isShowing) 900L else 300L
+        // O cartão fica na tela até a pessoa fechar, então o intervalo não depende dele: leitura rápida sempre.
+        val minGap = 150L
         if (now - lastScan < minGap) {
-            // Evento caiu na janela de 300 ms: agenda uma leitura final, senão a oferta
+            // Evento caiu na janela de 150 ms: agenda uma leitura final, senão a oferta
             // pode ficar sem leitura quando o app para de emitir eventos (contagem do botão Aceitar).
             handler.removeCallbacks(trailingScan)
             handler.postDelayed(trailingScan, minGap + 50)
@@ -67,7 +72,6 @@ class OfferAccessibilityService : AccessibilityService() {
     private fun scan() {
         val s = settings
         if (!s.monitoring) return
-        overlay.expireIfStale()
         if (!rotaApp.billing.hasAccess()) { overlay.hide(); return }
         lastScan = SystemClock.elapsedRealtime()
 
@@ -83,13 +87,12 @@ class OfferAccessibilityService : AccessibilityService() {
                 misses = 0
                 lastSignature = ""
                 pendingSig = ""
-                overlay.hide()
             }
             // Oferta pode aparecer um instante depois do evento: continua tentando enquanto o app alvo está na tela.
             if (found != null && retries < 6) {
                 retries++
                 handler.removeCallbacks(trailingScan)
-                handler.postDelayed(trailingScan, 400)
+                handler.postDelayed(trailingScan, 250)
             }
             // A Uber pode desenhar o pop-up de um jeito que a acessibilidade não vê: lê a imagem da tela (OCR).
             if (found != null) ensureOcrLoop()
@@ -169,7 +172,6 @@ class OfferAccessibilityService : AccessibilityService() {
 
         private fun tick() {
             val now = SystemClock.elapsedRealtime()
-            overlay.expireIfStale()
             // Captura que nunca respondeu (tela apagada, app protegido): destrava para não parar de ler.
             if (ocrBusy && now - lastShotAt > 4000) ocrBusy = false
             // Qual app está na tela só é conferido 1x por segundo (conferir janelas é caro).
@@ -179,9 +181,8 @@ class OfferAccessibilityService : AccessibilityService() {
             }
             val src = cachedSrc
             if (src == null) {
-                // O app de corrida saiu da tela: o cartão do Arka não fica para trás.
+                // O app de corrida saiu da tela: para o laço. O cartão continua até a pessoa fechar ou chegar outra oferta.
                 ocrLoopOn = false
-                overlay.hide()
                 ocrShown = false
                 lastSignature = ""
                 pendingSig = ""
@@ -190,7 +191,7 @@ class OfferAccessibilityService : AccessibilityService() {
             ocrSource = src
             // Nova captura assim que a anterior termina (mínimo de ~0,34 s: limite do Android entre capturas).
             // Se a leitura por texto acabou de achar a oferta, não precisa gastar bateria com imagem.
-            val gap = if (overlay.isShowing) 600L else 340L
+            val gap = 340L
             if (!ocrBusy && now - lastShotAt >= gap && now - lastTreeOfferAt > 4000) runOcr()
         }
     }
@@ -198,7 +199,7 @@ class OfferAccessibilityService : AccessibilityService() {
     private fun ensureOcrLoop() {
         if (ocrLoopOn || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         ocrLoopOn = true
-        handler.postDelayed(ocrTick, 100)
+        handler.postDelayed(ocrTick, 30)
     }
 
     /** Nome do app de corrida (ligado) que está na tela agora, ou null. */
@@ -274,9 +275,9 @@ class OfferAccessibilityService : AccessibilityService() {
             misses = 0
             handleOffer(offer, s, fromOcr = true)   // oferta nova (assinatura diferente, confirmada) substitui o cartão anterior
         } else if (++ocrMisses >= 3 && SystemClock.elapsedRealtime() - lastSeenAt > GONE_MS) {
-            // Cartão da Uber saiu da tela (aceita, recusada ou expirada): some o semáforo e libera a próxima.
+            // Cartão da Uber saiu da tela (aceita, recusada ou expirada): libera a próxima. O semáforo continua na tela.
             ocrMisses = 0
-            if (ocrShown) { overlay.hide(); ocrShown = false }
+            ocrShown = false
             lastSignature = ""
             pendingSig = ""
         }
