@@ -6,5 +6,5 @@
     android:accessibilityFlags="flagIncludeNotImportantViews|flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:canTakeScreenshot="true"
-    android:notificationTimeout="50"
+    android:notificationTimeout="200"
     android:packageNames="com.ubercab.driver,com.app99.driver,com.taxis99.driver,sinet.startup.inDriver,br.com.ifood.driver.app,com.sankuai.sailor.courier" />

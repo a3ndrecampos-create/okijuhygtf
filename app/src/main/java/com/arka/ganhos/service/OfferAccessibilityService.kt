@@ -57,10 +57,11 @@ class OfferAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || !settings.monitoring || !rotaApp.billing.hasAccess()) return
         val now = SystemClock.elapsedRealtime()
-        // O cartão fica na tela até a pessoa fechar, então o intervalo não depende dele: leitura rápida sempre.
-        val minGap = 150L
+        // Cada leitura da árvore consulta o app da corrida (IPC) e pesa nele e aqui. Procurando oferta: a cada 300 ms.
+        // Oferta já lida e ainda na tela: só confere de vez em quando (~0,8 s), sem pesar no Uber/99.
+        val minGap = if (tracking(now)) 800L else 300L
         if (now - lastScan < minGap) {
-            // Evento caiu na janela de 150 ms: agenda uma leitura final, senão a oferta
+            // Evento caiu na janela do intervalo: agenda uma leitura final, senão a oferta
             // pode ficar sem leitura quando o app para de emitir eventos (contagem do botão Aceitar).
             handler.removeCallbacks(trailingScan)
             handler.postDelayed(trailingScan, minGap + 50)
@@ -68,6 +69,9 @@ class OfferAccessibilityService : AccessibilityService() {
         }
         scan()
     }
+
+    /** Há uma oferta lida há pouco e ainda na tela: não precisa ler com pressa. */
+    private fun tracking(now: Long) = lastSignature.isNotEmpty() && now - lastSeenAt < TRACK_MS
 
     private fun scan() {
         val s = settings
@@ -92,7 +96,7 @@ class OfferAccessibilityService : AccessibilityService() {
             if (found != null && retries < 6) {
                 retries++
                 handler.removeCallbacks(trailingScan)
-                handler.postDelayed(trailingScan, 250)
+                handler.postDelayed(trailingScan, 300)
             }
             // A Uber pode desenhar o pop-up de um jeito que a acessibilidade não vê: lê a imagem da tela (OCR).
             if (found != null) ensureOcrLoop()
@@ -191,7 +195,7 @@ class OfferAccessibilityService : AccessibilityService() {
             ocrSource = src
             // Nova captura assim que a anterior termina (mínimo de ~0,34 s: limite do Android entre capturas).
             // Se a leitura por texto acabou de achar a oferta, não precisa gastar bateria com imagem.
-            val gap = 340L
+            val gap = if (tracking(now)) 1000L else 340L
             if (!ocrBusy && now - lastShotAt >= gap && now - lastTreeOfferAt > 4000) runOcr()
         }
     }
@@ -353,6 +357,9 @@ class OfferAccessibilityService : AccessibilityService() {
     companion object {
         /** Tempo sem ler a oferta para considerar que ela saiu da tela (e não foi só uma falha de leitura). */
         private const val GONE_MS = 2500L
+
+        /** Enquanto a última leitura da oferta for mais recente que isto, a leitura é espaçada (poupa o app da corrida). */
+        private const val TRACK_MS = 1500L
 
         /** A mesma oferta (mesmo valor/km/min) não vira cartão de novo dentro deste prazo. */
         private const val REPEAT_BLOCK_MS = 45_000L
