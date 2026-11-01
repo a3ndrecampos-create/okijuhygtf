@@ -282,4 +282,57 @@ class OfferParserTest {
         val texts = listOf("R$ 845,20") + filler + listOf("3 min • 1.0 km", "8 min • 2.0 km", "Aceitar")
         assertNull(OfferParser.parse(texts, "Uber"))
     }
+
+    @Test
+    fun uberHeaderTotalIsNotCountedAsARoute() {
+        // Card real: 13 min • 4,2 km no cabeçalho = retirada (4 min, 1,1 km) + viagem (9 min, 3,1 km)
+        val texts = listOf(
+            "UberX", "Exclusivo", "R$ 7,49", "13 min • 4.2 km • Est. de R$1,78/km",
+            "4 min • 1.1 km", "Rua José Bueno, Taboão da Serra", "4,96 (164)", "Verificado",
+            "9 minutos • 3.1 km", "R. Luís Carlos Ventura, 63, Jardim Santo Onofre", "Aceitar"
+        )
+        for (strict in listOf(false, true)) {
+            val o = OfferParser.parse(texts, "Uber", strict)!!
+            assertEquals(7.49, o.price, 0.001)
+            assertEquals(4, o.pickupMin); assertEquals(1.1, o.pickupKm, 0.001)
+            assertEquals(9, o.tripMin); assertEquals(3.1, o.tripKm, 0.001)
+            assertEquals(4.2, o.totalKm, 0.001); assertEquals(13, o.totalMin)
+        }
+    }
+
+    @Test
+    fun uberPriorityCardWithTenhoInteresseButton() {
+        val texts = listOf(
+            "Priority", "R$ 16,03", "18 min • 8.7 km • Est. de R$1,84/km", "+R$ 1,70 incluída para retirada",
+            "11 min • 5.7 km", "Rua Carlos Faria, Jardim Raposo Tavares, São Paulo", "★ 4,93 (76)",
+            "7 minutos • 3.0 km", "Est. São Francisco, Taboão da Serra, São Paulo", "Tenho interesse"
+        )
+        val o = OfferParser.parse(texts, "Uber", strict = true)!!
+        assertEquals(16.03, o.price, 0.001)
+        assertEquals(8.7, o.totalKm, 0.001); assertEquals(18, o.totalMin)
+        assertEquals(11, o.pickupMin)
+    }
+
+    @Test
+    fun uberHeaderRecoversMissingPickup() {
+        // OCR perdeu a linha da retirada: o que falta para fechar o total do cabeçalho é a retirada
+        val texts = listOf(
+            "UberX", "R$ 7,49", "13 min • 4.2 km • Est. de R$1,78/km", "Rua José Bueno, Taboão da Serra",
+            "4,96 (164)", "9 minutos • 3.1 km", "R. Luís Carlos Ventura, 63", "Aceitar"
+        )
+        val o = OfferParser.parse(texts, "Uber", strict = true)!!
+        assertEquals(4.2, o.totalKm, 0.001); assertEquals(13, o.totalMin)
+        assertEquals(4, o.pickupMin); assertEquals(9, o.tripMin)
+    }
+
+    @Test
+    fun uberHeaderRecoversMissingTrip() {
+        val texts = listOf(
+            "UberX", "R$ 6,17", "11 min • 3.8 km • Est. de R$1,62/km", "6 min • 2.3 km",
+            "Rua Novo Hamburgo, Taboão da Serra", "4,95 (161)", "Verificado", "Aceitar"
+        )
+        val o = OfferParser.parse(texts, "Uber", strict = true)!!
+        assertEquals(3.8, o.totalKm, 0.001); assertEquals(11, o.totalMin)
+        assertEquals(6, o.pickupMin); assertEquals(5, o.tripMin)
+    }
 }

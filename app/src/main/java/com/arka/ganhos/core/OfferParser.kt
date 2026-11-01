@@ -19,6 +19,8 @@ object OfferParser {
     // "4,91 (944)", "4,90" ou "4,98 • 124 corridas" (99)
     private val rating = Regex("""^\s*([3-5][.,]\d{1,2})(?:\s*\(\d+\))?(?:\s*[•·|\-–]\s*\+?\d+\s*corridas?.*)?\s*$""")
     // inDrive: "5 (5)" (nota inteira e número de corridas entre parênteses)
+    // nota do passageiro em qualquer ponto do texto ("★ 4,96 (164)"): usada para achar qual rota é a retirada
+    private val ratingChip = Regex("""[3-5][.,]\d{1,2}\s*\(\d+\)""")
     private val ratingInt = Regex("""^\s*[^\d\s]{0,2}\s*([3-5])\s*\(\d+\)\s*$""")
     /** Botões que só valem se o texto do nó for exatamente isso ("Registro de viagens" não conta). */
     private val exactCues = setOf("viagem", "entrega", "aceitar", "accept")
@@ -125,7 +127,7 @@ object OfferParser {
 
         val pairMatches = pair.findAll(joined).toList()
         val firstPairNode = pairMatches.firstOrNull()?.let { nodeAt(it.range.first) }
-        val pairs = pairMatches.map {
+        val allPairs = pairMatches.map {
             val h = it.groupValues[1].toIntOrNull() ?: 0
             val m = it.groupValues[2].toIntOrNull() ?: 0
             var km = toDouble(it.groupValues[3]) ?: 0.0
@@ -133,9 +135,18 @@ object OfferParser {
             if (!u.startsWith("k") && !u.startsWith("q")) km /= 1000.0
             Pair(h * 60 + m, km)
         }
+        // Uber (layout novo): o cabeçalho "13 min • 4.2 km • Est. de R$1,78/km" é o TOTAL (retirada + viagem), não uma rota.
+        // Contado como rota, ele virava a "retirada" e o total saía errado (ex.: 7,3 km / 22 min em vez de 4,2 km / 13 min).
+        val headerIdx = if (source == "Uber") {
+            val sm = shownPerKm.find(joined)
+            if (sm == null) -1 else pairMatches.indexOfLast { it.range.last < sm.range.first && sm.range.first - it.range.last <= 40 }
+        } else -1
+        val headerTotal: Pair<Int, Double>? = allPairs.getOrNull(headerIdx)
+        val legMatches = pairMatches.filterIndexed { i, _ -> i != headerIdx }
+        val pairs = allPairs.filterIndexed { i, _ -> i != headerIdx }
 
         val shown = shownPerKm.find(joined)?.groupValues?.get(1)?.let { toDouble(it) }?.takeIf { it > 0.0 }
-        val pairKm = if (pairs.size >= 2) pairs[0].second + pairs[1].second else null
+        val pairKm = headerTotal?.second ?: (if (pairs.size >= 2) pairs[0].second + pairs[1].second else null)
 
         // Qual R$ é o valor da corrida? 1) o do botão "Aceitar por R$"; 2) o que fecha com o R$/km e os km do card
         // (no "Negocia" da 99 há contrapropostas maiores); 3) o maior valor PERTO das rotas do card
@@ -170,6 +181,26 @@ object OfferParser {
         val trip: Pair<Int, Double>
         var tripKnown = true
         when {
+            // Uber com cabeçalho de total: o total do card manda; a rota que faltar é o que sobra do total.
+            headerTotal != null -> {
+                val ht: Pair<Int, Double> = headerTotal
+                when {
+                    pairs.size >= 2 -> {
+                        pickup = pairs[0]; trip = pairs[1]
+                        // retirada + viagem tem de fechar com o total do card (dígito lido errado espera a próxima leitura)
+                        if (kotlin.math.abs(pickup.second + trip.second - ht.second) > maxOf(0.3, ht.second * 0.06)) return null
+                    }
+                    pairs.size == 1 && pairs[0].second < ht.second -> {
+                        // Só uma rota foi lida. A retirada é a que vem logo antes da nota do passageiro ("4,96 (164)").
+                        val leg = pairs[0]
+                        val legNode = nodeAt(legMatches[0].range.first)
+                        val isPickup = (legNode + 1..legNode + 4).any { it in texts.indices && ratingChip.containsMatchIn(texts[it]) }
+                        val rest = Pair(maxOf(ht.first - leg.first, 0), ht.second - leg.second)
+                        if (isPickup) { pickup = leg; trip = rest } else { pickup = rest; trip = leg }
+                    }
+                    else -> { pickup = Pair(0, 0.0); trip = ht }
+                }
+            }
             // inDrive: a rota até o destino (verde) fica no alto do mapa e a retirada (azul) embaixo, perto do ponto A.
             // Na ordem de leitura (de cima para baixo) a viagem vem primeiro. Os totais (km e min) não dependem da ordem.
             pairs.size >= 2 && source == "inDrive" -> { trip = pairs[0]; pickup = pairs[1] }
@@ -199,7 +230,7 @@ object OfferParser {
         val strongCue = texts.any { it.trim().lowercase() in acceptButtons || acceptPrice.containsMatchIn(it) }
         if (!strongCue && balanceWords.containsMatchIn(low)) return null
         // Sem botão "Aceitar" visível na árvore, só aceita se tiver preço e as duas rotas (retirada + viagem).
-        if (!hasCue && pairs.size < 2) return null
+        if (!hasCue && allPairs.size < 2) return null
         if (tripKnown && trip.second <= 0.0 && trip.first <= 0) return null
 
         val r = texts.firstNotNullOfOrNull { t ->
