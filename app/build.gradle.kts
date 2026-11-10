@@ -34,11 +34,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Sem a chave de envio (testes locais) o release sai assinado com a chave debug e serve só para instalar.
             // A Play Store NÃO aceita esse arquivo: o .aab de publicação precisa vir do workflow com a chave de envio.
             signingConfig = if (hasUploadKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
-            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
+            ndk { debugSymbolLevel = "FULL" }
         }
     }
     compileOptions {
