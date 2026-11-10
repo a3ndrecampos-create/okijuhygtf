@@ -1,6 +1,6 @@
 package com.arka.ganhos.core
 
-const val TRIAL_DAYS = 60
+const val TRIAL_DAYS = 120
 private const val DAY_MS = 24L * 60 * 60 * 1000
 
 /** Dias que ainda restam do teste grátis (0 = acabou). [start] e [now] em milissegundos. */
