@@ -9,26 +9,26 @@ class TrialTest {
     private val day = 24L * 60 * 60 * 1000
 
     @Test
-    fun startsWithSixtyDays() {
-        assertEquals(60, TRIAL_DAYS)
-        assertEquals(60, trialDaysLeft(1_000_000L, 1_000_000L))
+    fun startsWithOneTwentyDays() {
+        assertEquals(120, TRIAL_DAYS)
+        assertEquals(120, trialDaysLeft(1_000_000L, 1_000_000L))
     }
 
     @Test
     fun countsDownByWholeDays() {
-        assertEquals(60, trialDaysLeft(0, day - 1))
-        assertEquals(59, trialDaysLeft(0, day))
-        assertEquals(1, trialDaysLeft(0, 59 * day + day / 2))
+        assertEquals(120, trialDaysLeft(0, day - 1))
+        assertEquals(119, trialDaysLeft(0, day))
+        assertEquals(1, trialDaysLeft(0, 119 * day + day / 2))
     }
 
     @Test
-    fun endsAtSixtyDaysAndStaysEnded() {
-        assertEquals(0, trialDaysLeft(0, 60 * day))
+    fun endsAtOneTwentyDaysAndStaysEnded() {
+        assertEquals(0, trialDaysLeft(0, 120 * day))
         assertEquals(0, trialDaysLeft(0, 400 * day))
     }
 
     @Test
     fun clockBeforeStartDoesNotExtendTrial() {
-        assertEquals(60, trialDaysLeft(10 * day, 0))
+        assertEquals(120, trialDaysLeft(10 * day, 0))
     }
 }
